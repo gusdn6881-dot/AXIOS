@@ -463,13 +463,31 @@ app.whenReady().then(() => {
 
   // 🔄 자동 업데이트 확인 및 알림 등록
   try {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.checkForUpdatesAndNotify();
     autoUpdater.on('update-available', () => {
       notify('AXIOS CLI 업데이트', '새로운 업데이트가 발견되어 다운로드를 시작합니다.');
     });
-    autoUpdater.on('update-downloaded', () => {
-      notify('AXIOS CLI 업데이트 완료', '업데이트 다운로드가 완료되었습니다. 앱을 재시작하면 설치됩니다.');
+    autoUpdater.on('update-downloaded', (info) => {
+      notify('AXIOS CLI 업데이트 완료', '새 버전 다운로드가 완료되었습니다. 클릭하거나 앱을 재시작하면 자동 설치됩니다.');
+      const dialogOpts = {
+        type: 'info',
+        buttons: ['지금 업데이트', '나중에'],
+        title: 'AXIOS CLI 업데이트 완료',
+        message: `새로운 버전(${info.version})이 다운로드되었습니다.`,
+        detail: '지금 재시작하여 업데이트를 설치하시겠습니까?'
+      };
+      dialog.showMessageBox(dialogOpts).then((returnValue) => {
+        if (returnValue.response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      });
     });
+    // 2시간마다 주기적으로 업데이트 확인
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(err => console.error('Error checking for updates:', err));
+    }, 2 * 60 * 60 * 1000);
   } catch (err) {
     console.error('Auto-update initialization error:', err);
   }
