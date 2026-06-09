@@ -1,4 +1,4 @@
-# 🎬 Connect AI — 시연 풀 가이드 (v2.89.150)
+# 🎬 Axios AI — 시연 풀 가이드 (v2.89.150)
 
 > 7분 안에 "AI 1인 기업"의 모든 임팩트 모먼트를 보여주는 시연 시나리오.
 
@@ -8,7 +8,7 @@
 
 ```bash
 # 1. 익스텐션 최신 버전 설치
-code --install-extension connect-ai-lab-2.89.150.vsix --force
+code --install-extension axios-ai-2.89.150.vsix --force
 
 # 2. Anti-Gravity Reload Window
 # Cmd+Shift+P → Developer: Reload Window
@@ -22,7 +22,7 @@ curl -s http://127.0.0.1:4825/ping | python3 -m json.tool
 - [ ] PayPal 자격증명 입력됨 (외부 연결 패널)
 - [ ] 두뇌의 키트 폴더 존재: `chick-game-kit`, `landing-kit`, `neon-survivor-kit`
 - [ ] EZER AI 빌드 호스팅됨 (또는 로컬 실행)
-- [ ] ~/connect-ai-projects/ 폴더 비워둠 (이름 충돌 방지)
+- [ ] ~/axios-ai-projects/ 폴더 비워둠 (이름 충돌 방지)
 
 ---
 
@@ -170,7 +170,7 @@ curl -s http://127.0.0.1:4825/ping | python3 -m json.tool
 | 코다리가 멈춤 | LM Studio Context 16K 이상 확인 + 재시도 |
 | `<read_file>` 노출 | v2.89.146 이상 + reload — shortcut 강제 발동 |
 | PayPal 403 | App Features → ☑ Transaction Search → Save Changes |
-| 가상 사무실 캐릭터 안 보임 | 명령 팔레트 → "Connect AI: 가상 사무실" |
+| 가상 사무실 캐릭터 안 보임 | 명령 팔레트 → "Axios AI: 가상 사무실" |
 
 ---
 
@@ -180,7 +180,7 @@ curl -s http://127.0.0.1:4825/ping | python3 -m json.tool
 
 ```bash
 # 가장 최신 vsix만 남기고 모두 삭제 (안전)
-ls ~/.antigravity/extensions/ | grep connect-ai-lab | grep -v "2.89.150" | \
+ls ~/.antigravity/extensions/ | grep axios-ai | grep -v "2.89.150" | \
   xargs -I{} rm -rf ~/.antigravity/extensions/{}
 ```
 

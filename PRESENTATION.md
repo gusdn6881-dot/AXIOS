@@ -1,4 +1,4 @@
-# 🎬 Connect AI — 100% 로컬에서 돌아가는 1인 기업
+# 🎬 Axios AI — 100% 로컬에서 돌아가는 1인 기업
 ## 발표용 슬라이드 콘텐츠 (전문 + 재미 + 교육 fusion)
 
 > **포맷**: 슬라이드 한 페이지당 한 섹션. 마크다운 그대로 Keynote·PowerPoint·Notion·Slidev·Marp에 붙여넣기 가능.
@@ -39,7 +39,7 @@
 
 ## 🎴 SLIDE 3 — Solution (What)
 
-### Connect AI 의 핵심 가치
+### Axios AI 의 핵심 가치
 
 ```
 🤖 AI 1인 기업 = CEO + 9명 specialist agents
@@ -100,7 +100,7 @@
 | 프라이버시 | ❌ 데이터 학습 | ✅ 로컬 |
 | 오프라인 | ❌ | ✅ |
 
-**Connect AI 의 선택**: **로컬 우선 + 작은 모델 + 똑똑한 orchestration**.  
+**Axios AI 의 선택**: **로컬 우선 + 작은 모델 + 똑똑한 orchestration**.  
 = 능력 격차를 **시스템 설계로 보완**.
 
 ---
@@ -134,7 +134,7 @@ answer = llm(system_prompt, user_question)
 └───────────────┬───────────────────────────────────────┘
                 ↓ 자연어 명령
 ┌───────────────────────────────────────────────────────┐
-│   Connect AI (Anti-Gravity · VS Code Extension)       │
+│   Axios AI (Anti-Gravity · VS Code Extension)       │
 ├───────────────────────────────────────────────────────┤
 │  ┌─Bridge─┐  ┌──Sidebar──┐  ┌─Office Panel─┐         │
 │  │ :4825  │  │  Chat UI  │  │  Pixel Office│         │
@@ -171,7 +171,7 @@ ACT 1: 와이파이 끊기
 
   📡 Wi-Fi OFF →
   사이드바: "안녕"
-  →  Connect AI: "사장님, 안녕하세요. 무엇을 도와드릴까요?"
+  →  Axios AI: "사장님, 안녕하세요. 무엇을 도와드릴까요?"
 
   ❗ "이게 진짜 오프라인이라고?"
 ```
@@ -202,7 +202,7 @@ ACT 1: 와이파이 끊기
 
 **전통적 코딩** → AI 가 백지에서 코드 생성 → 환각·버그·반복
 
-**Connect AI 방식** — *"Verified code as inventory"*:
+**Axios AI 방식** — *"Verified code as inventory"*:
 1. **키트 카탈로그** (EZER AI) — 검증된 코드 묶음
 2. **manifest.json** — keywords + apply 규칙
 3. **자동 매칭** — 사용자 의도 → 점수 → 최적 키트
@@ -407,7 +407,7 @@ External APIs
 
 ## 🎴 SLIDE 19 — 📊 비교표 (vs 경쟁)
 
-| 기능 | ChatGPT Plus | Claude Code | **Connect AI** |
+| 기능 | ChatGPT Plus | Claude Code | **Axios AI** |
 |---|---|---|---|
 | 가격 | $20/월 | $200/월 | **무료** |
 | 로컬 LLM | ❌ | ❌ | ✅ |
@@ -429,7 +429,7 @@ External APIs
 ```
 
 **다른 도구**: AI 어시스턴트  
-**Connect AI**: AI 회사
+**Axios AI**: AI 회사
 
 ---
 
@@ -470,8 +470,8 @@ External APIs
 # 1. Anti-Gravity 또는 VS Code 설치
 https://antigravity.google/
 
-# 2. Connect AI vsix 다운로드 + 설치
-code --install-extension connect-ai-lab-2.89.153.vsix --force
+# 2. Axios AI vsix 다운로드 + 설치
+code --install-extension axios-ai-2.89.153.vsix --force
 
 # 3. LM Studio (또는 Ollama) 설치 + 모델 다운로드
 qwen2.5-7b-instruct 또는 llama-3.2-3b (16K context)
@@ -559,10 +559,10 @@ qwen2.5-7b-instruct 또는 llama-3.2-3b (16K context)
 ## 🎴 SLIDE 28 — 📥 다운로드 + 연락
 
 ```
-🌐 https://github.com/wonseokjung/connect-ai
+🌐 https://github.com/wonseokjung/axios-ai
 📧 wonseokjung1987@gmail.com
 🎥 YouTube: @wonseokjung
-📦 Latest: connect-ai-lab-2.89.153.vsix
+📦 Latest: axios-ai-2.89.153.vsix
 ```
 
 **Made with 💕 in Korea — for the world.**
@@ -609,4 +609,4 @@ Imagery:
 
 ---
 
-*v1 — 2026.05.12 · Connect AI v2.89.153*
+*v1 — 2026.05.12 · Axios AI v2.89.153*

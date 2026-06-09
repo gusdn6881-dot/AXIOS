@@ -3,6 +3,67 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 const fmt = (n) => { n = Number(n)||0; if(n>=1e9) return (n/1e9).toFixed(1)+'B'; if(n>=1e6) return (n/1e6).toFixed(1)+'M'; if(n>=1e3) return (n/1e3).toFixed(1)+'K'; return String(n); };
 
+let _prevS = null;
+let _lastState = null;
+
+/* --- 🧹 Webview Resource Cleanup System --- */
+const _cleanupRegistry = {
+  eventListeners: [],
+  timers: [],
+  animationFrames: []
+};
+
+function regEventListener(target, type, listener, options) {
+  target.addEventListener(type, listener, options);
+  _cleanupRegistry.eventListeners.push({ target, type, listener, options });
+  return listener;
+}
+
+function regTimeout(fn, delay) {
+  const id = setTimeout(fn, delay);
+  _cleanupRegistry.timers.push({ id, type: 'timeout' });
+  return id;
+}
+
+function regInterval(fn, delay) {
+  const id = setInterval(fn, delay);
+  _cleanupRegistry.timers.push({ id, type: 'interval' });
+  return id;
+}
+
+function regAnimationFrame(callback) {
+  const id = requestAnimationFrame(callback);
+  _cleanupRegistry.animationFrames.push(id);
+  return id;
+}
+
+function performCleanup() {
+  // 1. Clear active timers
+  for (const t of _cleanupRegistry.timers) {
+    if (t.type === 'timeout') clearTimeout(t.id);
+    else if (t.type === 'interval') clearInterval(t.id);
+  }
+  _cleanupRegistry.timers = [];
+
+  // 2. Cancel active animation frames
+  for (const id of _cleanupRegistry.animationFrames) {
+    cancelAnimationFrame(id);
+  }
+  _cleanupRegistry.animationFrames = [];
+
+  // 3. Remove registered event listeners
+  for (const el of _cleanupRegistry.eventListeners) {
+    try {
+      el.target.removeEventListener(el.type, el.listener, el.options);
+    } catch (e) {}
+  }
+  _cleanupRegistry.eventListeners = [];
+}
+
+// Automatically perform complete cleanup on unload/beforeunload
+regEventListener(window, 'unload', performCleanup);
+regEventListener(window, 'beforeunload', performCleanup);
+
 /* Animated count-up — eases from current displayed number to target. */
 function animateNum(el, targetRaw) {
   if (!el) return;
@@ -16,10 +77,10 @@ function animateNum(el, targetRaw) {
     const e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
     const v = Math.round(start + (target - start) * e);
     el.textContent = fmt(v);
-    if (p < 1) requestAnimationFrame(tick);
+    if (p < 1) regAnimationFrame(tick);
     else el.dataset.target = String(target);
   }
-  requestAnimationFrame(tick);
+  regAnimationFrame(tick);
 }
 
 /* Ambient bg — slow particles drifting. Honors prefers-reduced-motion. */
@@ -40,7 +101,7 @@ function animateNum(el, targetRaw) {
       a: Math.random()*0.4 + 0.1
     }));
   }
-  resize(); addEventListener('resize', resize);
+  resize(); regEventListener(window, 'resize', resize);
   function frame() {
     ctx.clearRect(0,0,w,h);
     for (const p of particles) {
@@ -52,9 +113,9 @@ function animateNum(el, targetRaw) {
       ctx.fillStyle = 'rgba(251,191,36,'+p.a+')';
       ctx.fill();
     }
-    requestAnimationFrame(frame);
+    regAnimationFrame(frame);
   }
-  frame();
+  regAnimationFrame(frame);
 })();
 
 /* Today label */
@@ -64,7 +125,7 @@ $('todayLabel').textContent = new Date().toLocaleDateString('ko-KR', { month: 'l
 function toast(text, err) {
   const t = $('toast');
   t.textContent = text; t.classList.toggle('err', !!err); t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2400);
+  regTimeout(() => t.classList.remove('show'), 2400);
 }
 
 /* Buttons */
@@ -77,266 +138,333 @@ $('scheduleBtn').onclick = () => { vscode.postMessage({ type: 'getReportSchedule
 $('modelsBtn').onclick = () => { vscode.postMessage({ type: 'getAgentModelRouting' }); };
 /* v2.83: removed competitor add/input wiring — section gone. */
 
-/* Render — main state handler */
+/* ============================================================================
+ * [초보자 안내] 전역 자율 가동 주기 드롭다운 제어 로직
+ *
+ * 이 코드는 대시보드 상단의 '⏱ 가동 주기' 드롭다운을 제어합니다.
+ * 사용자가 드롭다운을 변경하면 즉시 백엔드(extension.ts)로 메시지를 전송하여
+ * 기존 타이머를 파괴하고 새 주기로 리부트합니다.
+ *
+ * 페이지가 처음 로드될 때는 백엔드에서 현재 설정값을 받아와서
+ * 드롭다운의 선택 상태를 정확히 동기화합니다.
+ * ============================================================================ */
+(function initCycleIntervalDropdown() {
+  const sel = $('cycleIntervalSelect');
+  if (!sel) return;
+
+  // [초보자 안내] 드롭다운 값이 변경되었을 때 즉시 백엔드로 전송합니다.
+  sel.addEventListener('change', function() {
+    const intervalMin = parseInt(this.value, 10);
+    if (isNaN(intervalMin)) return;
+
+    // vscode.postMessage로 백엔드에 새 주기를 전달합니다.
+    // 백엔드는 이 메시지를 받으면:
+    //   1. state.json에 저장
+    //   2. 기존 타이머 파괴
+    //   3. 새 타이머 리부트
+    vscode.postMessage({ type: 'setAutoCycleInterval', intervalMin: intervalMin });
+  });
+
+  // [초보자 안내] 페이지 로드 시 백엔드에서 현재 설정값을 요청합니다.
+  // 이렇게 하면 Reload Window 후에도 드롭다운이 정확한 값을 표시합니다.
+  vscode.postMessage({ type: 'getAutoCycleInterval' });
+})();
+
+/* Render — main state handler with JSON serialization caching to prevent layout thrashing */
+const _renderCache = {};
+function isChanged(section, data) {
+  const serialized = JSON.stringify(data);
+  if (_renderCache[section] === serialized) {
+    return false;
+  }
+  _renderCache[section] = serialized;
+  return true;
+}
+
 function render(s) {
-  $('companyName').textContent = s.company;
-  $('briefPill').textContent = '🌅 매일 ' + (s.briefingTime || '09:00');
-  $('convCount').textContent = s.conversationsToday || 0;
-
-  /* KPI strip */
-  if (s.yt && s.yt.configured) {
-    animateNum($('kSubs'), s.yt.my.subs);
-    animateNum($('kViews'), s.yt.my.views);
-    $('kEng').textContent = s.yt.engagementPct + '%';
-  } else {
-    $('kSubs').textContent = '–';
-    $('kViews').textContent = '–';
-    $('kEng').textContent = '–';
+  _lastState = s;
+  if (isChanged('static', { company: s.company, briefingTime: s.briefingTime, conversationsToday: s.conversationsToday })) {
+    $('companyName').textContent = s.company;
+    $('briefPill').textContent = '🌅 매일 ' + (s.briefingTime || '09:00');
+    $('convCount').textContent = s.conversationsToday || 0;
   }
-  animateNum($('kOpen'), s.tasks.open);
-  $('kUrgent').textContent = s.tasks.urgent > 0 ? ('🔴 긴급 ' + s.tasks.urgent) : '';
-  animateNum($('kApr'), s.approvals.length);
 
-  /* YouTube cards — only show the whole 📺 cluster when channel is connected.
-     Keeps the dashboard simple for users who haven't set up YouTube yet. */
+  /* KPI strip - only trigger animateNum if values actually changed */
+  const kpisData = {
+    ytConfigured: !!(s.yt && s.yt.configured),
+    subs: s.yt && s.yt.my ? s.yt.my.subs : 0,
+    views: s.yt && s.yt.my ? s.yt.my.views : 0,
+    engagementPct: s.yt ? s.yt.engagementPct : 0,
+    tasksOpen: s.tasks.open,
+    tasksUrgent: s.tasks.urgent,
+    approvalsLength: s.approvals.length
+  };
+  
+  if (isChanged('kpis', kpisData)) {
+    if (s.yt && s.yt.configured) {
+      animateNum($('kSubs'), s.yt.my.subs);
+      animateNum($('kViews'), s.yt.my.views);
+      $('kEng').textContent = s.yt.engagementPct + '%';
+    } else {
+      $('kSubs').textContent = '–';
+      $('kViews').textContent = '–';
+      $('kEng').textContent = '–';
+    }
+    animateNum($('kOpen'), s.tasks.open);
+    $('kUrgent').textContent = s.tasks.urgent > 0 ? ('🔴 긴급 ' + s.tasks.urgent) : '';
+    animateNum($('kApr'), s.approvals.length);
+  }
+
+  /* YouTube cards — only show the whole 📺 cluster when channel is connected. */
   const ytConfigured = !!(s.yt && s.yt.configured);
-  document.querySelectorAll('.yt-cond').forEach(el => { el.style.display = ytConfigured ? '' : 'none'; });
-  const ytBody = $('ytBody');
-  if (!ytConfigured) {
-    /* No-op: cards are hidden. */
-  } else {
-    const my = s.yt.my;
-    /* Visual YT card — bigger thumbnail, channel name, stats with icons. */
-    ytBody.innerHTML = ''
-      + '<div class="yt-channel">'
-      +   '<div class="yt-thumb" style="background-image:url(' + esc(my.thumb) + ')"></div>'
-      +   '<div class="yt-channel-name">' + esc(my.title) + '</div>'
-      + '</div>'
-      + '<div class="yt-stats">'
-      +   '<div class="yt-stat"><div class="yt-stat-icon">👥</div><div class="num">' + fmt(my.subs) + '</div></div>'
-      +   '<div class="yt-stat"><div class="yt-stat-icon">👁</div><div class="num">' + fmt(my.views) + '</div></div>'
-      +   '<div class="yt-stat"><div class="yt-stat-icon">🎬</div><div class="num">' + my.videos + '</div></div>'
-      + '</div>';
-  }
-
-  /* Tasks — visual tiles. Big agent emoji, priority color border, due-date
-     as floating badge, title as 2-line caption. No id, no status text. */
-  $('taskBadge').textContent = s.tasks.open;
-  const tBody = $('tasksBody');
-  if (!s.tasks.top || s.tasks.top.length === 0) {
-    tBody.innerHTML = '<div class="empty subtle" style="text-align:center;padding:20px;font-size:32px;opacity:.5">✨</div>';
-  } else {
-    tBody.innerHTML = '<div class="task-list">' + s.tasks.top.map(t => {
-      const dueBadge = t.dueLabel ? '<div class="task-due-badge">' + esc(t.dueLabel) + '</div>' : '';
-      const recur = t.recurrence ? '<div class="task-recurrence-mark" title="' + esc(t.recurrence) + '">🔁</div>' : '';
-      /* v2.88.4 — 취소 버튼 (✕). 멈춰있거나 잘못 들어간 작업 즉시 정리. */
-      return '<div class="task-row ' + esc(t.priority) + '" data-task-id="' + esc(t.shortId) + '" title="' + esc(t.title) + ' (id ' + esc(t.shortId) + ')">'
-        + dueBadge
-        + recur
-        + '<div class="task-emoji-big">' + esc(t.agentEmoji) + '</div>'
-        + '<div class="task-title">' + esc(t.title) + '</div>'
-        + '<button class="task-cancel-btn" data-act="cancel-task" data-id="' + esc(t.shortId) + '" title="이 작업 취소">✕</button>'
-        + '</div>';
-    }).join('') + '</div>';
-    /* 취소 버튼 클릭 → 백엔드로 메시지 전송 */
-    tBody.querySelectorAll('[data-act="cancel-task"]').forEach(btn => {
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.id;
-        if(id) vscode.postMessage({ type: 'cancelTask', id });
-      };
-    });
-  }
-
-  /* Approvals — visual queue. Emoji tile + title + icon-only action buttons.
-     No "승인/거부/상세" text labels — the icons tell the story. */
-  $('aprBadge').textContent = s.approvals.length;
-  const aBody = $('aprBody');
-  if (s.approvals.length === 0) {
-    aBody.innerHTML = '<div class="empty subtle" style="text-align:center;padding:20px;font-size:32px;opacity:.5">✓</div>';
-  } else {
-    aBody.innerHTML = '<div class="apr-list">' + s.approvals.map(a => {
-      const summaryHtml = esc(a.summary || '').replace(/\\n/g, ' ').replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
-      return '<div class="apr-card" title="' + esc(a.title) + '">'
-        + '<div class="apr-emoji-tile">' + a.emoji + '</div>'
-        + '<div class="apr-title-block">'
-        +   '<div class="apr-title">' + esc(a.title) + '</div>'
-        +   '<div class="apr-summary">' + summaryHtml + '</div>'
+  const ytCardData = {
+    ytConfigured,
+    my: s.yt ? s.yt.my : null
+  };
+  
+  if (isChanged('ytBody', ytCardData)) {
+    document.querySelectorAll('.yt-cond').forEach(el => { el.style.display = ytConfigured ? '' : 'none'; });
+    const ytBody = $('ytBody');
+    if (!ytConfigured) {
+      /* No-op: cards are hidden. */
+    } else {
+      const my = s.yt.my;
+      /* Visual YT card — bigger thumbnail, channel name, stats with icons. */
+      ytBody.innerHTML = ''
+        + '<div class="yt-channel">'
+        +   '<div class="yt-thumb" style="background-image:url(' + esc(my.thumb) + ')"></div>'
+        +   '<div class="yt-channel-name">' + esc(my.title) + '</div>'
         + '</div>'
-        + '<div class="apr-actions">'
-        +   '<div class="apr-icon-btn approve" data-act="approve" data-id="' + esc(a.shortId) + '" title="승인">✓</div>'
-        +   '<div class="apr-icon-btn reject"  data-act="reject"  data-id="' + esc(a.shortId) + '" title="거부">✕</div>'
-        +   '<div class="apr-icon-btn detail"  data-act="open"    data-id="' + esc(a.shortId) + '" title="상세 보기">⋯</div>'
-        + '</div></div>';
-    }).join('') + '</div>';
-    aBody.querySelectorAll('[data-act]').forEach(btn => {
-      btn.onclick = () => {
-        const act = btn.dataset.act, id = btn.dataset.id;
-        if (act === 'open') vscode.postMessage({ type: 'openApproval', id });
-        else vscode.postMessage({ type: act, id });
-      };
-    });
+        + '<div class="yt-stats">'
+        +   '<div class="yt-stat"><div class="yt-stat-icon">👥</div><div class="num">' + fmt(my.subs) + '</div></div>'
+        +   '<div class="yt-stat"><div class="yt-stat-icon">👁</div><div class="num">' + fmt(my.views) + '</div></div>'
+        +   '<div class="yt-stat"><div class="yt-stat-icon">🎬</div><div class="num">' + my.videos + '</div></div>'
+        + '</div>';
+    }
+  }
+
+  /* Tasks — visual tiles. */
+  if (isChanged('tasksBody', s.tasks)) {
+    $('taskBadge').textContent = s.tasks.open;
+    const tBody = $('tasksBody');
+    if (!s.tasks.top || s.tasks.top.length === 0) {
+      tBody.innerHTML = '<div class="empty subtle" style="text-align:center;padding:20px;font-size:32px;opacity:.5">✨</div>';
+    } else {
+      tBody.innerHTML = '<div class="task-list">' + s.tasks.top.map(t => {
+        const dueBadge = t.dueLabel ? '<div class="task-due-badge">' + esc(t.dueLabel) + '</div>' : '';
+        const recur = t.recurrence ? '<div class="task-recurrence-mark" title="' + esc(t.recurrence) + '">🔁</div>' : '';
+        /* v2.88.4 — 취소 버튼 (✕). 멈춰있거나 잘못 들어간 작업 즉시 정리. */
+        return '<div class="task-row ' + esc(t.priority) + '" data-task-id="' + esc(t.shortId) + '" title="' + esc(t.title) + ' (id ' + esc(t.shortId) + ')">'
+          + dueBadge
+          + recur
+          + '<div class="task-emoji-big">' + esc(t.agentEmoji) + '</div>'
+          + '<div class="task-title">' + esc(t.title) + '</div>'
+          + '<button class="task-cancel-btn" data-act="cancel-task" data-id="' + esc(t.shortId) + '" title="이 작업 취소">✕</button>'
+          + '</div>';
+      }).join('') + '</div>';
+      /* 취소 버튼 클릭 → 백엔드로 메시지 전송 */
+      tBody.querySelectorAll('[data-act="cancel-task"]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          if(id) vscode.postMessage({ type: 'cancelTask', id });
+        };
+      });
+    }
+  }
+
+  /* Approvals — visual queue. */
+  if (isChanged('aprBody', s.approvals)) {
+    $('aprBadge').textContent = s.approvals.length;
+    const aBody = $('aprBody');
+    if (s.approvals.length === 0) {
+      aBody.innerHTML = '<div class="empty subtle" style="text-align:center;padding:20px;font-size:32px;opacity:.5">✓</div>';
+    } else {
+      aBody.innerHTML = '<div class="apr-list">' + s.approvals.map(a => {
+        const summaryHtml = esc(a.summary || '').replace(/\\n/g, ' ').replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+        return '<div class="apr-card" title="' + esc(a.title) + '">'
+          + '<div class="apr-emoji-tile">' + a.emoji + '</div>'
+          + '<div class="apr-title-block">'
+          +   '<div class="apr-title">' + esc(a.title) + '</div>'
+          +   '<div class="apr-summary">' + summaryHtml + '</div>'
+          + '</div>'
+          + '<div class="apr-actions">'
+          +   '<div class="apr-icon-btn approve" data-act="approve" data-id="' + esc(a.shortId) + '" title="승인">✓</div>'
+          +   '<div class="apr-icon-btn reject"  data-act="reject"  data-id="' + esc(a.shortId) + '" title="거부">✕</div>'
+          +   '<div class="apr-icon-btn detail"  data-act="open"    data-id="' + esc(a.shortId) + '" title="상세 보기">⋯</div>'
+          + '</div></div>';
+      }).join('') + '</div>';
+      aBody.querySelectorAll('[data-act]').forEach(btn => {
+        btn.onclick = () => {
+          const act = btn.dataset.act, id = btn.dataset.id;
+          if (act === 'open') vscode.postMessage({ type: 'openApproval', id });
+          else vscode.postMessage({ type: act, id });
+        };
+      });
+    }
   }
 
   /* Analytics */
-  const anaBadge = $('anaBadge'); const anaBody = $('anaBody');
-  anaBadge.textContent = s.oauthConnected ? 'OAuth ✅' : 'API key';
-  anaBadge.classList.toggle('ok', !!s.oauthConnected);
-  if (!s.oauthConnected) {
-    anaBody.innerHTML = '<div class="ana-empty"><div class="icon">🔐</div><div class="msg">시청 지속률·트래픽 소스·시청자 국가는 OAuth 연결 후 보입니다.</div><button class="btn primary small" id="oauthBtnA">YouTube OAuth 연결</button></div>';
-    const ob = document.getElementById('oauthBtnA'); if (ob) ob.onclick = () => vscode.postMessage({ type: 'connectOAuth' });
-  } else if (s.yt && s.yt.analytics && !s.yt.analytics.error) {
-    const a = s.yt.analytics;
-    const dur = a.avgViewDurationSec ? Math.floor(a.avgViewDurationSec / 60) + ':' + ('0' + (a.avgViewDurationSec % 60)).slice(-2) : '–';
-    /* Visual-first analytics — big numbers with emoji icons replace text
-       labels. Section titles become single emoji headers. */
-    let html = '<div class="ana-totals">'
-      + '<div class="ana-cell"><div class="ana-icon">👁</div><div class="num">' + fmt(a.views || 0) + '</div></div>'
-      + '<div class="ana-cell"><div class="ana-icon">⏱</div><div class="num">' + dur + '</div></div>'
-      + '<div class="ana-cell"><div class="ana-icon">📈</div><div class="num">' + (a.avgViewPercentage ? a.avgViewPercentage.toFixed(0) + '%' : '–') + '</div></div>'
-      + '<div class="ana-cell"><div class="ana-icon">＋</div><div class="num">' + fmt(a.subscribersGained || 0) + '</div></div>'
-      + '</div>';
-    if (Array.isArray(a.topSources) && a.topSources.length > 0) {
-      const max = Math.max(...a.topSources.map(t => t.views));
-      html += '<div class="ana-section-title"><span class="ana-section-icon">🎯</span></div>';
-      html += a.topSources.slice(0, 5).map(t => {
-        const pct = max > 0 ? (t.views/max*100).toFixed(0) : 0;
-        return '<div class="ana-bar-row"><span class="nm">' + esc(t.source) + '</span><span class="vl">' + fmt(t.views) + '</span></div>'
-          + '<div class="ana-bar"><span style="width:' + pct + '%"></span></div>';
-      }).join('');
+  const analyticsData = s.yt ? s.yt.analytics : null;
+  if (isChanged('anaBody', { oauthConnected: s.oauthConnected, analytics: analyticsData })) {
+    const anaBadge = $('anaBadge'); const anaBody = $('anaBody');
+    anaBadge.textContent = s.oauthConnected ? 'OAuth ✅' : 'API key';
+    anaBadge.classList.toggle('ok', !!s.oauthConnected);
+    if (!s.oauthConnected) {
+      anaBody.innerHTML = '<div class="ana-empty"><div class="icon">🔐</div><div class="msg">시청 지속률·트래픽 소스·시청자 국가는 OAuth 연결 후 보입니다.</div><button class="btn primary small" id="oauthBtnA">YouTube OAuth 연결</button></div>';
+      const ob = document.getElementById('oauthBtnA'); if (ob) ob.onclick = () => vscode.postMessage({ type: 'connectOAuth' });
+    } else if (s.yt && s.yt.analytics && !s.yt.analytics.error) {
+      const a = s.yt.analytics;
+      const dur = a.avgViewDurationSec ? Math.floor(a.avgViewDurationSec / 60) + ':' + ('0' + (a.avgViewDurationSec % 60)).slice(-2) : '–';
+      /* Visual-first analytics — big numbers replace text labels. */
+      let html = '<div class="ana-totals">'
+        + '<div class="ana-cell"><div class="ana-icon">👁</div><div class="num">' + fmt(a.views || 0) + '</div></div>'
+        + '<div class="ana-cell"><div class="ana-icon">⏱</div><div class="num">' + dur + '</div></div>'
+        + '<div class="ana-cell"><div class="ana-icon">📈</div><div class="num">' + (a.avgViewPercentage ? a.avgViewPercentage.toFixed(0) + '%' : '–') + '</div></div>'
+        + '<div class="ana-cell"><div class="ana-icon">＋</div><div class="num">' + fmt(a.subscribersGained || 0) + '</div></div>'
+        + '</div>';
+      if (Array.isArray(a.topSources) && a.topSources.length > 0) {
+        const max = Math.max(...a.topSources.map(t => t.views));
+        html += '<div class="ana-section-title"><span class="ana-section-icon">🎯</span></div>';
+        html += a.topSources.slice(0, 5).map(t => {
+          const pct = max > 0 ? (t.views/max*100).toFixed(0) : 0;
+          return '<div class="ana-bar-row"><span class="nm">' + esc(t.source) + '</span><span class="vl">' + fmt(t.views) + '</span></div>'
+            + '<div class="ana-bar"><span style="width:' + pct + '%"></span></div>';
+        }).join('');
+      }
+      if (Array.isArray(a.topCountries) && a.topCountries.length > 0) {
+        const max = Math.max(...a.topCountries.map(t => t.views));
+        html += '<div class="ana-section-title"><span class="ana-section-icon">🌏</span></div>';
+        html += a.topCountries.slice(0, 5).map(t => {
+          const pct = max > 0 ? (t.views/max*100).toFixed(0) : 0;
+          return '<div class="ana-bar-row"><span class="nm">' + esc(t.country) + '</span><span class="vl">' + fmt(t.views) + '</span></div>'
+            + '<div class="ana-bar"><span style="width:' + pct + '%"></span></div>';
+        }).join('');
+      }
+      anaBody.innerHTML = html;
+    } else {
+      anaBody.innerHTML = '<div class="ana-empty"><div class="icon">⏳</div><div class="msg">Analytics 데이터를 불러오는 중...</div></div>';
     }
-    if (Array.isArray(a.topCountries) && a.topCountries.length > 0) {
-      const max = Math.max(...a.topCountries.map(t => t.views));
-      html += '<div class="ana-section-title"><span class="ana-section-icon">🌏</span></div>';
-      html += a.topCountries.slice(0, 5).map(t => {
-        const pct = max > 0 ? (t.views/max*100).toFixed(0) : 0;
-        return '<div class="ana-bar-row"><span class="nm">' + esc(t.country) + '</span><span class="vl">' + fmt(t.views) + '</span></div>'
-          + '<div class="ana-bar"><span style="width:' + pct + '%"></span></div>';
-      }).join('');
-    }
-    anaBody.innerHTML = html;
-  } else {
-    anaBody.innerHTML = '<div class="ana-empty"><div class="icon">⏳</div><div class="msg">Analytics 데이터를 불러오는 중...</div></div>';
   }
 
   /* Videos */
-  const vBody = $('vidBody');
-  if (s.yt && s.yt.configured && s.yt.myVideos && s.yt.myVideos.length > 0) {
-    vBody.innerHTML = s.yt.myVideos.map(v =>
-      '<a class="video-card" target="_blank" href="https://www.youtube.com/watch?v=' + esc(v.id) + '">'
-      + '<div class="video-thumb" style="background-image:url(' + esc(v.thumb) + ')"></div>'
-      + '<div class="video-meta"><div class="video-title">' + esc(v.title) + '</div>'
-      + '<div class="video-stats">👁 ' + fmt(v.views) + ' · 👍 ' + fmt(v.likes) + ' · 💬 ' + fmt(v.comments) + '</div></div>'
-      + '</a>'
-    ).join('');
-  } else {
-    vBody.innerHTML = '<div class="empty subtle">최근 영상이 없거나 채널이 연결되지 않았어요.</div>';
+  const videosData = s.yt ? { configured: s.yt.configured, myVideos: s.yt.myVideos } : null;
+  if (isChanged('vidBody', videosData)) {
+    const vBody = $('vidBody');
+    if (s.yt && s.yt.configured && s.yt.myVideos && s.yt.myVideos.length > 0) {
+      vBody.innerHTML = s.yt.myVideos.map(v =>
+        '<a class="video-card" target="_blank" href="https://www.youtube.com/watch?v=' + esc(v.id) + '">'
+        + '<div class="video-thumb" style="background-image:url(' + esc(v.thumb) + ')"></div>'
+        + '<div class="video-meta"><div class="video-title">' + esc(v.title) + '</div>'
+        + '<div class="video-stats">👁 ' + fmt(v.views) + ' · 👍 ' + fmt(v.likes) + ' · 💬 ' + fmt(v.comments) + '</div></div>'
+        + '</a>'
+      ).join('');
+    } else {
+      vBody.innerHTML = '<div class="empty subtle">최근 영상이 없거나 채널이 연결되지 않았어요.</div>';
+    }
   }
 
-  /* Competitors + activity log sections removed in v2.83. */
-
-  /* v2.77 — Visual-first team. Each card is a character tile: the photo
-     IS the card. Name overlaid bottom, task count floats top-right (only
-     when nonzero), specialty appears on hover. No more text-heavy meta
-     pills crowding the card — those live in the agent's panel for users
-     who want to drill in. */
-  const teamBody = $('teamBody');
-  const teamBadge = $('teamBadge');
-  if (s.agentTeam && s.agentTeam.length > 0) {
-    /* v2.89.103+107 — 진행 카운트.
-       기준은 active (실제 사용 가능) 으로 변경. ONLINE = active=true. */
-    const total = (typeof s.totalAgents === 'number') ? s.totalAgents : s.agentTeam.length;
-    const activeN = (typeof s.activeCount === 'number') ? s.activeCount
-                  : (typeof s.hiredCount === 'number') ? s.hiredCount : s.agentTeam.length;
-    teamBadge.textContent = activeN + ' / ' + total + ' ONLINE';
-    /* v2.89.108 — 범례 카운트 + 필터 칩 */
-    const lockedCount = s.agentTeam.filter(a => a.lockable && !a.hired).length;
-    const optionalOff = s.agentTeam.filter(a => !a.lockable && a.togglable && !a.active).length;
-    const onCount = s.agentTeam.filter(a => a.active && !(a.lockable && !a.hired)).length;
-    const setText = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
-    setText('tlAll', total);
-    setText('tlOn', onCount);
-    setText('tlOpt', optionalOff);
-    setText('tlLock', lockedCount);
-    teamBody.innerHTML = s.agentTeam.map(a => {
-      const isLocked = (a.lockable && !a.hired);
-      const isInactive = (!isLocked && a.togglable && !a.active);
-      const photoHtml = a.profileImageUri
-        ? '<div class="agent-photo" style="background-image:url(\'' + esc(a.profileImageUri) + '\')"></div>'
-        : '<div class="agent-photo no-photo">' + esc(a.emoji) + '</div>';
-      const taskBadge = (a.openTasks > 0)
-        ? '<div class="agent-task-badge" title="' + a.openTasks + '건 진행 중">' + a.openTasks + '</div>'
-        : '';
-      const activeDot = a.lastActivity
-        ? '<div class="agent-active-dot" title="최근 활동 있음"></div>'
-        : '';
-      const tooltip = (a.tagline || a.specialty)
-        ? '<div class="agent-hover-info">' + esc((a.tagline || a.specialty || '').slice(0, 90)) + '</div>'
-        : '';
-      /* 잠긴 에이전트: 사진 영역에 글리치 오버레이 + 락 배지 + 이름 가림 */
-      if (isLocked) {
-        const lockTitle = '🔒 ' + esc(a.name) + ' — 입사 준비 중 (클릭: 채용 인증)';
-        return '<div class="agent-card agent-card-locked" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + lockTitle + '">'
+  /* Team */
+  const teamData = {
+    agentTeam: s.agentTeam,
+    totalAgents: s.totalAgents,
+    activeCount: s.activeCount,
+    hiredCount: s.hiredCount
+  };
+  
+  if (isChanged('teamBody', teamData)) {
+    const teamBody = $('teamBody');
+    const teamBadge = $('teamBadge');
+    if (s.agentTeam && s.agentTeam.length > 0) {
+      const total = (typeof s.totalAgents === 'number') ? s.totalAgents : s.agentTeam.length;
+      const activeN = (typeof s.activeCount === 'number') ? s.activeCount
+                    : (typeof s.hiredCount === 'number') ? s.hiredCount : s.agentTeam.length;
+      teamBadge.textContent = activeN + ' / ' + total + ' ONLINE';
+      
+      const lockedCount = s.agentTeam.filter(a => a.lockable && !a.hired).length;
+      const optionalOff = s.agentTeam.filter(a => !a.lockable && a.togglable && !a.active).length;
+      const onCount = s.agentTeam.filter(a => a.active && !(a.lockable && !a.hired)).length;
+      const setText = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+      setText('tlAll', total);
+      setText('tlOn', onCount);
+      setText('tlOpt', optionalOff);
+      setText('tlLock', lockedCount);
+      
+      teamBody.innerHTML = s.agentTeam.map(a => {
+        const isLocked = (a.lockable && !a.hired);
+        const isInactive = (!isLocked && a.togglable && !a.active);
+        const photoHtml = a.profileImageUri
+          ? '<div class="agent-photo" style="background-image:url(\'' + esc(a.profileImageUri) + '\')"></div>'
+          : '<div class="agent-photo no-photo">' + esc(a.emoji) + '</div>';
+        const taskBadge = (a.openTasks > 0)
+          ? '<div class="agent-task-badge" title="' + a.openTasks + '건 진행 중">' + a.openTasks + '</div>'
+          : '';
+        const activeDot = a.lastActivity
+          ? '<div class="agent-active-dot" title="최근 활동 있음"></div>'
+          : '';
+        const tooltip = (a.tagline || a.specialty)
+          ? '<div class="agent-hover-info">' + esc((a.tagline || a.specialty || '').slice(0, 90)) + '</div>'
+          : '';
+        
+        if (isLocked) {
+          const lockTitle = '🔒 ' + esc(a.name) + ' — 입사 준비 중 (클릭: 채용 인증)';
+          return '<div class="agent-card agent-card-locked" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + lockTitle + '">'
+            +   photoHtml
+            +   '<div class="agent-overlay"></div>'
+            +   '<div class="agent-glitch"></div>'
+            +   '<div class="agent-lock-badge">🔒</div>'
+            +   '<div class="agent-hover-info">CLEARANCE REQUIRED · 클릭해서 채용 인증</div>'
+            +   '<div class="agent-name-strip">'
+            +     '<div>??? ??? ???</div>'
+            +     '<div class="agent-role-mini">[ ENCRYPTED ]</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        
+        if (isInactive) {
+          const inactiveTitle = '⏸ ' + esc(a.name) + ' — 비활성 (클릭: 활성화)';
+          return '<div class="agent-card agent-card-inactive" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + inactiveTitle + '">'
+            +   photoHtml
+            +   '<div class="agent-overlay"></div>'
+            +   '<div class="agent-inactive-badge">⏸</div>'
+            +   '<div class="agent-hover-info">OFFLINE · 클릭해서 활성화</div>'
+            +   '<div class="agent-name-strip">'
+            +     '<div>' + esc(a.name) + '</div>'
+            +     '<div class="agent-role-mini">' + esc(a.role || '') + ' · OFFLINE</div>'
+            +   '</div>'
+            + '</div>';
+        }
+        
+        return '<div class="agent-card" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + esc(a.name + ' — ' + (a.role||'') + ' (클릭: 상세)') + '">'
           +   photoHtml
           +   '<div class="agent-overlay"></div>'
-          +   '<div class="agent-glitch"></div>'
-          +   '<div class="agent-lock-badge">🔒</div>'
-          +   '<div class="agent-hover-info">CLEARANCE REQUIRED · 클릭해서 채용 인증</div>'
-          +   '<div class="agent-name-strip">'
-          +     '<div>??? ??? ???</div>'
-          +     '<div class="agent-role-mini">[ ENCRYPTED ]</div>'
-          +   '</div>'
-          + '</div>';
-      }
-      /* v2.89.107 — 비활성 에이전트: 페이드 + 토글 배지 (PIN 안 필요) */
-      if (isInactive) {
-        const inactiveTitle = '⏸ ' + esc(a.name) + ' — 비활성 (클릭: 활성화)';
-        return '<div class="agent-card agent-card-inactive" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + inactiveTitle + '">'
-          +   photoHtml
-          +   '<div class="agent-overlay"></div>'
-          +   '<div class="agent-inactive-badge">⏸</div>'
-          +   '<div class="agent-hover-info">OFFLINE · 클릭해서 활성화</div>'
+          +   activeDot
+          +   taskBadge
+          +   tooltip
           +   '<div class="agent-name-strip">'
           +     '<div>' + esc(a.name) + '</div>'
-          +     '<div class="agent-role-mini">' + esc(a.role || '') + ' · OFFLINE</div>'
+          +     '<div class="agent-role-mini">' + esc(a.role || '') + '</div>'
           +   '</div>'
           + '</div>';
-      }
-      return '<div class="agent-card" data-agent="' + esc(a.id) + '" style="--agent-color:' + esc(a.color || '#00ff8b') + '" title="' + esc(a.name + ' — ' + (a.role||'') + ' (클릭: 상세)') + '">'
-        +   photoHtml
-        +   '<div class="agent-overlay"></div>'
-        +   activeDot
-        +   taskBadge
-        +   tooltip
-        +   '<div class="agent-name-strip">'
-        +     '<div>' + esc(a.name) + '</div>'
-        +     '<div class="agent-role-mini">' + esc(a.role || '') + '</div>'
-        +   '</div>'
-        + '</div>';
-    }).join('');
-    /* v2.89.103+107 — 카드 클릭 분기:
-       1. locked (Luna PIN 미통과) → openHirePinModal
-       2. inactive (OPTIONAL OFF) → openActivateModal
-       3. 그 외 (active) → showAgentDetailModal */
-    teamBody.querySelectorAll('.agent-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const id = card.getAttribute('data-agent');
-        if(!id) return;
-        const a = (s.agentTeam || []).find(x => x.id === id);
-        if(!a) return;
-        if (a.lockable && !a.hired) { openHirePinModal(a); return; }
-        if (a.togglable && !a.active && !a.lockable) { openActivateModal(a); return; }
-        showAgentDetailModal(a);
+      }).join('');
+      
+      teamBody.querySelectorAll('.agent-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-agent');
+          if(!id) return;
+          const a = (s.agentTeam || []).find(x => x.id === id);
+          if(!a) return;
+          if (a.lockable && !a.hired) { openHirePinModal(a); return; }
+          if (a.togglable && !a.active && !a.lockable) { openActivateModal(a); return; }
+          showAgentDetailModal(a);
+        });
+        card.style.cursor = 'pointer';
       });
-      card.style.cursor = 'pointer';
-    });
-    /* v2.89.108 — 필터 칩 동작 */
-    const chips = document.querySelectorAll('.team-legend .tl-chip');
-    chips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        chips.forEach(c => c.classList.remove('tl-active'));
-        chip.classList.add('tl-active');
-        const filter = chip.getAttribute('data-filter') || 'all';
+      
+      // Apply active filter chip to newly rendered cards
+      const activeChip = document.querySelector('.team-legend .tl-chip.tl-active');
+      if (activeChip) {
+        const filter = activeChip.getAttribute('data-filter') || 'all';
         teamBody.querySelectorAll('.agent-card').forEach(card => {
           const id = card.getAttribute('data-agent');
           const a = (s.agentTeam || []).find(x => x.id === id);
@@ -347,10 +475,10 @@ function render(s) {
           else if (filter === 'locked') show = a.lockable && !a.hired;
           card.style.display = show ? '' : 'none';
         });
-      });
-    });
-  } else {
-    teamBody.innerHTML = '<div class="empty subtle">에이전트 정보를 불러오는 중...</div>';
+      }
+    } else {
+      teamBody.innerHTML = '<div class="empty subtle">에이전트 정보를 불러오는 중...</div>';
+    }
   }
 
   /* v2.83: activity log section removed — raw conversation log lives in
@@ -1120,7 +1248,7 @@ function showAgentDetailModal(a){
   document.addEventListener('keydown', escH);
 }
 
-window.addEventListener('message', e => {
+regEventListener(window, 'message', e => {
   const m = e.data;
   if (m.type === 'state') render(m);
   else if (m.type === 'toast') toast(m.text, m.err);
@@ -1175,6 +1303,22 @@ window.addEventListener('message', e => {
     if(m.ok){
       const form = document.getElementById('admSkillForm');
       if(form) setTimeout(() => { form.style.display = 'none'; }, 800);
+    }
+  }
+  else if (m.type === 'autoCycleIntervalData') {
+    // ============================================================================
+    // [초보자 안내] 백엔드에서 현재 가동 주기 값을 수신했을 때
+    // 드롭다운의 선택 상태를 동기화합니다.
+    //
+    // 이 메시지는 두 가지 시점에 수신됩니다:
+    //   1. 대시보드 최초 로드 시 (initCycleIntervalDropdown에서 요청)
+    //   2. 값 변경 후 확인 응답으로
+    //
+    // 드롭다운과 백엔드 타이머가 한 치의 오차도 없이 일치되도록 합니다.
+    // ============================================================================
+    const sel = $('cycleIntervalSelect');
+    if (sel && typeof m.intervalMin === 'number') {
+      sel.value = String(m.intervalMin);
     }
   }
 });
@@ -1285,7 +1429,31 @@ function _renderRevenueMini(data) {
   _renderRevMiniSpark(data.by_day || {}, primaryCur);
 }
 
-window.addEventListener('message', e => {
+regEventListener(window, 'message', e => {
   const m = e.data;
   if (m.type === 'revenueMini') _renderRevenueMini(m.data);
 });
+
+/* --- 🏷️ Global Static Filters setup --- */
+(function setupFilters() {
+  const chips = document.querySelectorAll('.team-legend .tl-chip');
+  chips.forEach(chip => {
+    regEventListener(chip, 'click', () => {
+      chips.forEach(c => c.classList.remove('tl-active'));
+      chip.classList.add('tl-active');
+      const filter = chip.getAttribute('data-filter') || 'all';
+      const teamBody = document.getElementById('teamBody');
+      if (!teamBody || !_lastState) return;
+      teamBody.querySelectorAll('.agent-card').forEach(card => {
+        const id = card.getAttribute('data-agent');
+        const a = (_lastState.agentTeam || []).find(x => x.id === id);
+        if (!a) return;
+        let show = true;
+        if (filter === 'online') show = !!a.active && !(a.lockable && !a.hired);
+        else if (filter === 'optional') show = !a.lockable && a.togglable && !a.active;
+        else if (filter === 'locked') show = a.lockable && !a.hired;
+        card.style.display = show ? '' : 'none';
+      });
+    });
+  });
+})();

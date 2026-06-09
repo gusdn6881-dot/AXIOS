@@ -240,7 +240,7 @@ function _grepFiles(pattern: string, root: string, fileGlob?: string): { file: s
 
 /* v2.89.154 — 현재 익스텐션 버전. /ping 응답에 포함시켜서 다른 인스턴스가 우리 거인지
    식별 + 옛 버전인지 판단. package.json 의 version 과 동기 유지. */
-const _CONNECT_AI_VERSION = '2.89.156';
+const _AXIOS_AI_VERSION = '2.89.156';
 
 /* v2.89.127 — semver 비교. true 이면 a < b (a 가 옛 버전). */
 function _versionLessThan(a: string, b: string): boolean {
@@ -254,14 +254,14 @@ function _versionLessThan(a: string, b: string): boolean {
 }
 
 /* v2.89.127 — 포트 4825에 이미 떠있는 Bridge가 우리 것인지 식별.
-   - ours: connect-ai-bridge 식별자
+   - ours: axios-ai-bridge 식별자
    - version: 그 인스턴스 버전 (옛 버전이면 자동 인계 대상)
    - pid: 종료 대상 PID */
 async function _probeExistingBridge(): Promise<{ ours: boolean; version: string; pid: number }> {
     try {
         const r = await axios.get('http://127.0.0.1:4825/ping', { timeout: 1500 });
         const d = r.data;
-        if (d && d.app === 'connect-ai-bridge') {
+        if (d && d.app === 'axios-ai-bridge') {
             return { ours: true, version: String(d.version || ''), pid: Number(d.pid || 0) };
         }
     } catch { /* not running or different app */ }
@@ -304,7 +304,7 @@ function _killProcessesOnPort(port: number): number[] {
             }
         }
     } catch (e) {
-        console.error('[Connect AI] _killProcessesOnPort 실패:', e);
+        console.error('[Axios AI] _killProcessesOnPort 실패:', e);
     }
     return killed;
 }
@@ -469,7 +469,7 @@ function ensureBrainGitignore(brainDir: string) {
     const gi = path.join(brainDir, '.gitignore');
     if (fs.existsSync(gi)) return;
     const lines = [
-        '# Connect AI auto-generated',
+        '# Axios AI auto-generated',
         '.DS_Store',
         '.obsidian/',
         '.trash/',
@@ -510,7 +510,7 @@ let _companySyncRunning = false; /* separate lock — brain & company can sync i
      - venv/pyenv 환경 무시
      - PATH 미동기화 (Anti-Gravity 가 시스템 PATH 못 잡음) 시 spawn 실패
    해결:
-     1. 사용자 설정 connectAiLab.pythonPath 가장 강함
+     1. 사용자 설정 axiosAi.pythonPath 가장 강함
      2. 후보 cmd 순차 시도 (which/where 로 실제 존재 확인) — 첫 성공한 거 캐시
      3. 캐시 못 찾으면 fallback 명령 (사용자에게 안내)
 */
@@ -519,7 +519,7 @@ let _pythonCmdCache: string | null = null;
 function _detectPythonCmd(): string {
     /* 1. 사용자 명시 경로 — 절대 경로 또는 명령 이름. 가장 강함. */
     try {
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const override = (cfg.get<string>('pythonPath') || '').trim();
         if (override) {
             /* 절대 경로면 그대로, 명령 이름이면 PATH 검색 */
@@ -557,7 +557,7 @@ function _detectPythonCmd(): string {
     return process.platform === 'win32' ? 'python' : 'python3';
 }
 
-function _pythonCmd(): string {
+export function _pythonCmd(): string {
     if (_pythonCmdCache) return _pythonCmdCache;
     _pythonCmdCache = _detectPythonCmd();
     return _pythonCmdCache;
@@ -587,7 +587,7 @@ function _pythonMissingHint(): string {
            `🔧 해결:\n` +
            `  1. ${platformHint}\n` +
            `  2. 설치 후 안티그래비티/VS Code 완전 종료 → 재실행 (PATH 새로고침 필요)\n` +
-           `  3. 또는 명령 팔레트 → "⚙️ 설정 열기" → \`connectAiLab.pythonPath\` 에 절대 경로 입력 (예: \`/usr/local/bin/python3\` 또는 \`C:\\\\Python311\\\\python.exe\`)\n` +
+           `  3. 또는 명령 팔레트 → "⚙️ 설정 열기" → \`axiosAi.pythonPath\` 에 절대 경로 입력 (예: \`/usr/local/bin/python3\` 또는 \`C:\\\\Python311\\\\python.exe\`)\n` +
            `🔍 본인 PC 의 Python 경로 확인:\n` +
            (process.platform === 'win32' ? '  - PowerShell: \`Get-Command python, python3, py\`' : '  - 터미널: \`which python3 python py\`');
 }
@@ -651,13 +651,13 @@ function runCommandCaptured(
 }
 
 // ============================================================
-// Connect AI — Full Agentic Local AI for VS Code
+// Axios AI — Full Agentic Local AI for VS Code
 // 100% Offline · File Create · File Edit · Terminal · Multi-file Context
 // ============================================================
 
 // Settings are read from VS Code configuration (File > Preferences > Settings)
 function getConfig() {
-    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+    const cfg = vscode.workspace.getConfiguration('axiosAi');
 
     // ollamaUrl: only http(s)://localhost or 127.0.0.1 is meaningful here.
     let ollamaBase = (cfg.get<string>('ollamaUrl', 'http://127.0.0.1:11434') || '').trim();
@@ -720,7 +720,7 @@ async function _ensureBrainDir(): Promise<string | null> {
     if (!folders || folders.length === 0) return null;
     
     const selectedPath = folders[0].fsPath;
-    await vscode.workspace.getConfiguration('connectAiLab').update('localBrainPath', selectedPath, vscode.ConfigurationTarget.Global);
+    await vscode.workspace.getConfiguration('axiosAi').update('localBrainPath', selectedPath, vscode.ConfigurationTarget.Global);
     vscode.window.showInformationMessage(`✅ 지식 폴더가 설정되었어요: ${selectedPath}`);
     return selectedPath;
 }
@@ -744,7 +744,7 @@ function _loadPrompt(file: string): string {
     try {
         cached = fs.readFileSync(path.join(_PROMPTS_DIR, file), 'utf-8');
     } catch (e: any) {
-        console.error(`[Connect AI] prompt 로드 실패 ${file}:`, e?.message || e);
+        console.error(`[Axios AI] prompt 로드 실패 ${file}:`, e?.message || e);
         cached = '';
     }
     _promptCache.set(file, cached);
@@ -761,7 +761,7 @@ function _loadToolSeed(rel: string): string {
     try {
         cached = fs.readFileSync(path.join(_TOOL_SEEDS_DIR, rel), 'utf-8');
     } catch (e: any) {
-        console.error(`[Connect AI] tool seed 로드 실패 ${rel}:`, e?.message || e);
+        console.error(`[Axios AI] tool seed 로드 실패 ${rel}:`, e?.message || e);
         cached = '';
     }
     _toolSeedCache.set(rel, cached);
@@ -774,7 +774,7 @@ const SYSTEM_PROMPT = _loadPrompt('system.md');
 // ------------------------------------------------------------
 // CEO + 5 specialist agents share a "Company" subtree under
 // the existing brain folder:
-//   ~/.connect-ai-brain/Company/
+//   ~/.axios-ai-brain/Company/
 //     _shared/        ← 공동 목표, 회사 정체성 (모두 매번 읽음)
 //     _agents/<id>/   ← 각 에이전트 개인 메모리 (자기만 읽고 씀)
 //     sessions/<ts>/  ← 세션별 산출물 + CEO 종합 보고
@@ -864,7 +864,7 @@ const WORLD_LAYOUT = {
  *  agent at a real desk/seat in their room, avoiding walls and furniture.
  *  The y values anchor agent FEET (sprite is 96px tall, feet at bottom). */
 const CUSTOM_MAP_DESKS: Record<string, DeskPos> = {
-  // Top-left CEO solo office (glass-walled, "Connect AI" sign on wall)
+  // Top-left CEO solo office (glass-walled, "Axios AI" sign on wall)
   ceo:        { x: 8,  y: 22 },
   // Front desk just outside CEO's office — Secretary station
   secretary:  { x: 18, y: 33 },
@@ -902,7 +902,7 @@ function buildWorldDeskPositions(): Record<string, DeskPos> {
 //   1) Nested (default, v2.58): company at `<brain>/_company/`. Same git
 //      repo, brain stays clean at root, _company/ collapses under one
 //      prefix. Best for solo users who want one backup.
-//   2) Detached (v2.59): user sets `connectAiLab.companyDir` to an absolute
+//   2) Detached (v2.59): user sets `axiosAi.companyDir` to an absolute
 //      path. Company lives wherever they want — e.g., team-shared folder,
 //      separate git repo, different cloud sync. Brain stays at brain root,
 //      independent.
@@ -929,12 +929,12 @@ function _migrateCompanyToSubdir() {
       const src = path.join(root, d);
       const dst = path.join(target, d);
       try { fs.renameSync(src, dst); } catch (e) {
-        console.warn(`[Connect AI] migration: rename ${d} failed`, e);
+        console.warn(`[Axios AI] migration: rename ${d} failed`, e);
       }
     }
-    console.log(`[Connect AI] migrated ${present.length} legacy folders under ${target}`);
+    console.log(`[Axios AI] migrated ${present.length} legacy folders under ${target}`);
   } catch (e) {
-    console.warn('[Connect AI] _company/ migration failed', e);
+    console.warn('[Axios AI] _company/ migration failed', e);
   }
 }
 
@@ -942,7 +942,7 @@ async function setCompanyDir(absPath: string) {
   // Redirects to localBrainPath: choosing a company location now means
   // choosing where the brain (and therefore the company) lives.
   try {
-    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+    const cfg = vscode.workspace.getConfiguration('axiosAi');
     await cfg.update('localBrainPath', absPath, vscode.ConfigurationTarget.Global);
   } catch {
     if (_extCtx) {
@@ -1007,7 +1007,7 @@ function _migrateCompanyToBrain() {
     const brain = _getBrainDir();
     if (fs.existsSync(path.join(brain, '_shared'))) return; // already unified
 
-    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+    const cfg = vscode.workspace.getConfiguration('axiosAi');
     let legacy = ((cfg.get('companyDir') as string | undefined) || '').trim();
     if (!legacy && _extCtx) {
       legacy = (_extCtx.globalState.get<string>('companyDir') || '').trim();
@@ -1031,9 +1031,9 @@ function _migrateCompanyToBrain() {
     if (_extCtx) {
       try { _extCtx.globalState.update('companyDir', undefined); } catch {}
     }
-    console.log(`Connect AI: migrated ${legacy} → ${brain}`);
+    console.log(`Axios AI: migrated ${legacy} → ${brain}`);
   } catch (e) {
-    console.error('Connect AI: company → brain migration failed', e);
+    console.error('Axios AI: company → brain migration failed', e);
   }
 }
 
@@ -1083,7 +1083,7 @@ function updateCompanyMetrics(updates: any) {
 }
 
 function _extractCompanyName(idMd: string): string {
-  const m = idMd.match(/회사\s*이름\s*[:：]\s*(.+)/);
+  const m = idMd.match(/회사\s*이름\s*[:：]?\s*(.+)/);
   if (!m || !m[1]) return '';
   let v = m[1].trim().replace(/\*+/g, '').replace(/^_+|_+$/g, '').trim();
   if (!v) return '';
@@ -1595,7 +1595,7 @@ function writeCompanyConfig(cfg: Partial<CompanyConfig>) {
 `);
 }
 
-function readTelegramConfig(): { token: string; chatId: string } {
+export function readTelegramConfig(): { token: string; chatId: string } {
   /* New canonical: _agents/secretary/tools/telegram_setup.json (set via the
      UI's ⚙️ tool config modal). Falls back to legacy config.md (markdown
      edit) for users on pre-v2.52 setups. */
@@ -1882,14 +1882,14 @@ const TELEGRAM_LOCK_TTL_MS = 15000;
 function _telegramLockPath(): string {
   /* v2.89.24 — 유저 레벨로 이동. 이전엔 `_company/_shared/`(워크스페이스 단위)에
      있어서 안티그래비티 창마다 다른 워크스페이스면 락도 따로따로 → 두 창이
-     독립적으로 폴링. ~/.connect-ai-brain/ 는 모든 창이 공유하는 단일 위치. */
-  const userBrain = path.join(os.homedir(), '.connect-ai-brain');
+     독립적으로 폴링. ~/.axios-ai-brain/ 는 모든 창이 공유하는 단일 위치. */
+  const userBrain = path.join(os.homedir(), '.axios-ai-brain');
   try { fs.mkdirSync(userBrain, { recursive: true }); } catch { /* ignore */ }
   return path.join(userBrain, '.telegram_poll.lock');
 }
 function _telegramOffsetPath(): string {
   /* 같은 이유로 offset도 유저 레벨 파일에 저장. globalState 의존 X. */
-  const userBrain = path.join(os.homedir(), '.connect-ai-brain');
+  const userBrain = path.join(os.homedir(), '.axios-ai-brain');
   try { fs.mkdirSync(userBrain, { recursive: true }); } catch { /* ignore */ }
   return path.join(userBrain, '.telegram_offset.json');
 }
@@ -1956,7 +1956,7 @@ function _releaseTelegramLockIfOwned(): void {
   } catch { /* ignore */ }
 }
 
-const TELEGRAM_HELP = `🤖 *Connect AI 봇* — 비서가 24시간 대기 중
+const TELEGRAM_HELP = `🤖 *Axios AI 봇* — 비서가 24시간 대기 중
 
 *그냥 자연어로 말해주세요. 비서가 알아서 처리합니다.*
 
@@ -2280,7 +2280,7 @@ function _buildCapabilityReport(): string {
     /* 1) 비서 본인의 직접 능력 */
     lines.push('*📅 일정 관리*');
     if (calOk) lines.push('  ✅ 추가·조회·수정·취소 (자연어로) — "내일 3시 미팅 잡아줘"');
-    else lines.push('  ⚠️ 미연결 — 명령 팔레트 → "Connect AI: Google Calendar 자동 일정 연결"');
+    else lines.push('  ⚠️ 미연결 — 명령 팔레트 → "Axios AI: Google Calendar 자동 일정 연결"');
     lines.push('');
     lines.push('*📨 텔레그램 양방향*');
     if (tg.token && tg.chatId) lines.push('  ✅ 작동 중 — 명령 받고 보고 보내기');
@@ -2367,7 +2367,7 @@ function _buildDispatchStatusReport(): string {
     } catch { /* tracker may not exist */ }
     /* 24시간 자율 사이클 ON/OFF */
     try {
-        const enabled = vscode.workspace.getConfiguration('connectAiLab').get<boolean>('autoCycleEnabled', true);
+        const enabled = vscode.workspace.getConfiguration('axiosAi').get<boolean>('autoCycleEnabled', true);
         lines.push(`*🌙 24시간 자율 사이클*: ${enabled ? '✅ ON (15분마다 일거리 자동 실행)' : '⏸ OFF'}`);
     } catch { /* ignore */ }
     return lines.join('\n');
@@ -2553,7 +2553,7 @@ async function handleTelegramViaSecretary(userText: string): Promise<void> {
     if (mode === 'calendar_create') {
         const ev = parsed.event;
         if (!isCalendarWriteConnected()) {
-            await sendTelegramReport(`⚠️ Google Calendar가 연결되지 않았어요.\n\n*명령 팔레트* → "Connect AI: Google Calendar 자동 일정 연결" 로 먼저 셋업해주세요.`);
+            await sendTelegramReport(`⚠️ Google Calendar가 연결되지 않았어요.\n\n*명령 팔레트* → "Axios AI: Google Calendar 자동 일정 연결" 로 먼저 셋업해주세요.`);
             return;
         }
         if (!ev || typeof ev.title !== 'string' || typeof ev.start !== 'string') {
@@ -2597,7 +2597,7 @@ async function handleTelegramViaSecretary(userText: string): Promise<void> {
             return;
         }
         const days = (typeof parsed.days_ahead === 'number' && parsed.days_ahead > 0) ? Math.min(60, parsed.days_ahead) : 7;
-        const events = await findCalendarEvents({ daysAhead: days });
+        const events = await findCalendarEvents({ daysAhead: days, maxResults: 10 });
         if (events.length === 0) {
             await sendTelegramReport(`💬 *비서*: 향후 ${days}일 안에 잡힌 일정이 없어요. ${replyText}`);
             return;
@@ -2967,7 +2967,10 @@ function readCalendarWriteConfig(): CalendarWriteConfig {
   try {
     const p = _calendarWriteConfigPath();
     if (!fs.existsSync(p)) return {};
-    return JSON.parse(fs.readFileSync(p, 'utf-8') || '{}');
+    const cfg = JSON.parse(fs.readFileSync(p, 'utf-8') || '{}');
+    if (cfg.CLIENT_ID) cfg.CLIENT_ID = cfg.CLIENT_ID.replace(/\s+/g, '');
+    if (cfg.CLIENT_SECRET) cfg.CLIENT_SECRET = cfg.CLIENT_SECRET.replace(/\s+/g, '');
+    return cfg;
   } catch { return {}; }
 }
 function writeCalendarWriteConfig(cfg: CalendarWriteConfig) {
@@ -3232,22 +3235,25 @@ async function createCalendarEventDirect(opts: {
 }
 
 /* Find calendar events matching a fuzzy query (used by Secretary when user
-   says "내일 회의 취소해" — match by title + date window). Returns up to 5
-   results sorted by closeness to "now". */
+   says "내일 회의 취소해" — match by title + date window).
+   maxResults defaults to 5 for delete/update precision; pass higher value
+   for list queries. */
 async function findCalendarEvents(opts: {
   query?: string;
   daysAhead?: number;
+  maxResults?: number;   // default 5 for delete/update, use 10+ for list
 }): Promise<Array<{ eventId: string; title: string; startIso: string; endIso: string; htmlLink?: string }>> {
   const access = await _getCalendarAccessToken();
   if (!access) return [];
   const cfg = readCalendarWriteConfig();
   const calendarId = (cfg.CALENDAR_ID || 'primary').trim() || 'primary';
   const days = opts.daysAhead && opts.daysAhead > 0 ? opts.daysAhead : 14;
+  const limit = (opts.maxResults && opts.maxResults > 0) ? Math.min(opts.maxResults, 50) : 5;
   const now = new Date();
   const future = new Date(now.getTime() + days * 86_400_000);
   const params = new URLSearchParams({
     timeMin: now.toISOString(), timeMax: future.toISOString(),
-    singleEvents: 'true', orderBy: 'startTime', maxResults: '20',
+    singleEvents: 'true', orderBy: 'startTime', maxResults: String(Math.max(limit, 20)),
   });
   if (opts.query) params.set('q', opts.query.slice(0, 80));
   try {
@@ -3257,7 +3263,7 @@ async function findCalendarEvents(opts: {
     );
     if (r.status < 200 || r.status >= 300) return [];
     const items = Array.isArray(r.data?.items) ? r.data.items : [];
-    return items.slice(0, 5).map((ev: any) => ({
+    return items.slice(0, limit).map((ev: any) => ({
       eventId: String(ev.id),
       title: String(ev.summary || '(제목 없음)'),
       startIso: String(ev.start?.dateTime || ev.start?.date || ''),
@@ -3352,41 +3358,67 @@ async function runConnectGoogleCalendarWrite() {
     if (choice !== '재연결') return;
   }
 
-  const intro = await vscode.window.showInformationMessage(
-    `📅 Google Calendar 자동 일정 등록 — 셋업 (약 5~10분)\n\n1단계: Google Cloud Console에서 OAuth 클라이언트 만들기 (수동)\n2단계: Client ID + Secret 붙여넣기\n3단계: 브라우저로 로그인 → 끝\n\n시작할까요?`,
-    { modal: true },
-    '시작',
-    'Google Cloud Console 먼저 열기',
-    '취소'
-  );
-  if (intro === '취소' || !intro) return;
-  if (intro === 'Google Cloud Console 먼저 열기') {
-    await vscode.env.openExternal(vscode.Uri.parse('https://console.cloud.google.com/apis/credentials'));
-    const back = await vscode.window.showInformationMessage(
-      `Google Cloud에서 다음 단계를 마쳤으면 계속 →\n\n1. 새 프로젝트 만들기\n2. APIs & Services → Library → "Google Calendar API" 활성화\n3. OAuth 동의 화면 설정 (External, Test users에 본인 이메일)\n4. Credentials → Create OAuth 2.0 Client ID → 'Desktop app'\n5. Client ID + Client Secret 복사`,
+  let clientId = cfg.CLIENT_ID || '';
+  let clientSecret = cfg.CLIENT_SECRET || '';
+  let useExisting = false;
+
+  if (clientId && clientSecret) {
+    const choice = await vscode.window.showInformationMessage(
+      `📅 기존에 입력된 Google OAuth 설정이 존재합니다.\nClient ID: ${clientId.slice(0, 20)}...\n\n이 설정값으로 바로 Google 로그인을 진행할까요?`,
       { modal: true },
-      '다 됐음 →',
+      '기존 설정으로 로그인',
+      '새로 입력',
       '취소'
     );
-    if (back !== '다 됐음 →') return;
+    if (choice === '취소' || !choice) return;
+    if (choice === '기존 설정으로 로그인') {
+      useExisting = true;
+    }
   }
 
-  const clientId = await vscode.window.showInputBox({
-    title: 'Google OAuth Client ID',
-    prompt: 'Google Cloud Credentials 페이지에서 복사한 Client ID',
-    placeHolder: 'xxxxxxxx.apps.googleusercontent.com',
-    ignoreFocusOut: true,
-    validateInput: v => (v || '').trim() ? null : '비어있어요',
-  });
-  if (!clientId) return;
-  const clientSecret = await vscode.window.showInputBox({
-    title: 'Google OAuth Client Secret',
-    prompt: '같은 화면의 Client Secret',
-    placeHolder: 'GOCSPX-...',
-    password: true,
-    ignoreFocusOut: true,
-    validateInput: v => (v || '').trim() ? null : '비어있어요',
-  });
+  if (!useExisting) {
+    const intro = await vscode.window.showInformationMessage(
+      `📅 Google Calendar 자동 일정 등록 — 셋업 (약 5~10분)\n\n1단계: Google Cloud Console에서 OAuth 클라이언트 만들기 (수동)\n2단계: Client ID + Secret 붙여넣기\n3단계: 브라우저로 로그인 → 끝\n\n시작할까요?`,
+      { modal: true },
+      '시작',
+      'Google Cloud Console 먼저 열기',
+      '취소'
+    );
+    if (intro === '취소' || !intro) return;
+    if (intro === 'Google Cloud Console 먼저 열기') {
+      await vscode.env.openExternal(vscode.Uri.parse('https://console.cloud.google.com/apis/credentials'));
+      const back = await vscode.window.showInformationMessage(
+        `Google Cloud에서 다음 단계를 마쳤으면 계속 →\n\n1. 새 프로젝트 만들기\n2. APIs & Services → Library → "Google Calendar API" 활성화\n3. OAuth 동의 화면 설정 (External, Test users에 본인 이메일)\n4. Credentials → Create OAuth 2.0 Client ID → 'Desktop app'\n5. Client ID + Client Secret 복사`,
+        { modal: true },
+        '다 됐음 →',
+        '취소'
+      );
+      if (back !== '다 됐음 →') return;
+    }
+
+    const inputId = await vscode.window.showInputBox({
+      title: 'Google OAuth Client ID',
+      prompt: 'Google Cloud Credentials 페이지에서 복사한 Client ID',
+      placeHolder: 'xxxxxxxx.apps.googleusercontent.com',
+      value: clientId,
+      ignoreFocusOut: true,
+      validateInput: v => (v || '').trim() ? null : '비어있어요',
+    });
+    if (!inputId) return;
+    clientId = inputId;
+
+    const inputSecret = await vscode.window.showInputBox({
+      title: 'Google OAuth Client Secret',
+      prompt: '같은 화면의 Client Secret',
+      placeHolder: 'GOCSPX-...',
+      password: true,
+      value: clientSecret,
+      ignoreFocusOut: true,
+      validateInput: v => (v || '').trim() ? null : '비어있어요',
+    });
+    if (!inputSecret) return;
+    clientSecret = inputSecret;
+  }
   if (!clientSecret) return;
 
   /* OAuth dance — spin up a one-shot local HTTP server, open browser,
@@ -3397,7 +3429,9 @@ async function runConnectGoogleCalendarWrite() {
     cancellable: true,
   }, async (progress, cancelToken) => {
     progress.report({ message: '브라우저에서 Google 로그인 진행하세요' });
-    const result = await _runCalendarOAuthLoopback(clientId.trim(), clientSecret.trim(), cancelToken);
+    const cleanClientId = clientId.replace(/\s+/g, '');
+    const cleanClientSecret = clientSecret.replace(/\s+/g, '');
+    const result = await _runCalendarOAuthLoopback(cleanClientId, cleanClientSecret, cancelToken);
     if (!result.ok) {
       await vscode.window.showErrorMessage(`OAuth 실패: ${result.error || '알 수 없는 오류'}`);
       return;
@@ -3414,8 +3448,8 @@ async function runConnectGoogleCalendarWrite() {
       }
     } catch { /* non-fatal */ }
     writeCalendarWriteConfig({
-      CLIENT_ID: clientId.trim(),
-      CLIENT_SECRET: clientSecret.trim(),
+      CLIENT_ID: cleanClientId,
+      CLIENT_SECRET: cleanClientSecret,
       REFRESH_TOKEN: result.refreshToken,
       CALENDAR_ID: 'primary',
       DEFAULT_DURATION_MINUTES: 60,
@@ -3461,7 +3495,7 @@ async function _runCalendarOAuthLoopback(
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         if (err) {
-          res.end(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect AI — 인증 실패</title>
+          res.end(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Axios AI — 인증 실패</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#080a0f;color:#e2e8f0;font-family:'SF Pro Display','Pretendard',-apple-system,system-ui,sans-serif;overflow:hidden}
@@ -3481,7 +3515,7 @@ h1{font-size:22px;font-weight:700;color:#ef4444;margin-bottom:10px;text-shadow:0
 <div class="icon">🔴</div>
 <h1>인증 실패</h1>
 <div class="err">${err}</div>
-<p class="msg">Connect AI로 돌아가서 다시 시도해주세요.</p>
+<p class="msg">Axios AI로 돌아가서 다시 시도해주세요.</p>
 <p class="hint">이 탭은 닫아도 됩니다.</p>
 </div>
 </body></html>`);
@@ -3489,7 +3523,7 @@ h1{font-size:22px;font-weight:700;color:#ef4444;margin-bottom:10px;text-shadow:0
           _resolve({ ok: false, error: err });
           return;
         }
-        res.end(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect AI — 인증 완료</title>
+        res.end(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Axios AI — 인증 완료</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#080a0f;color:#e2e8f0;font-family:'SF Pro Display','Pretendard',-apple-system,system-ui,sans-serif;overflow:hidden}
@@ -3523,7 +3557,7 @@ h1{font-size:22px;font-weight:700;color:#00ff41;margin-bottom:10px;text-shadow:0
 <div class="brand">Connect · AI Solopreneur OS</div>
 <div class="ring"><span class="icon">✅</span></div>
 <h1>인증 완료!</h1>
-<p class="msg">Google Calendar가 <strong>Connect AI</strong>에 연결됐어요.<br>이 탭은 자동으로 닫힙니다.</p>
+<p class="msg">Google Calendar가 <strong>Axios AI</strong>에 연결됐어요.<br>이 탭은 자동으로 닫힙니다.</p>
 <p class="countdown" id="cd">3초 후 닫힘</p>
 </div>
 <script>
@@ -3594,7 +3628,7 @@ var t=setInterval(function(){s--;if(s<=0){clearInterval(t);cd.textContent='닫�
         prompt: 'consent',
       }).toString();
       try { await vscode.env.openExternal(vscode.Uri.parse(authUrl)); } catch { /* user can copy from log */ }
-      console.log('[Connect AI] Calendar OAuth URL:', authUrl);
+      console.log('[Axios AI] Calendar OAuth URL:', authUrl);
     });
     /* Cancel after 3 minutes max */
     const timer = setTimeout(() => {
@@ -3679,7 +3713,7 @@ function _parseBriefingTime(raw: string): { hour: number; minute: number } | nul
 
 async function _runDailyBriefingOnce(force = false): Promise<void> {
     try {
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const time = _parseBriefingTime(cfg.get<string>('dailyBriefingTime') || '09:00');
         if (!time && !force) return; // off
         const { token, chatId } = readTelegramConfig();
@@ -3772,7 +3806,7 @@ function startDailyBriefingLoop() {
        The single-fire guard via globalState makes this safe to over-tick. */
     _dailyBriefingTimer = setInterval(() => {
         try {
-            const cfg = vscode.workspace.getConfiguration('connectAiLab');
+            const cfg = vscode.workspace.getConfiguration('axiosAi');
             const time = _parseBriefingTime(cfg.get<string>('dailyBriefingTime') || '09:00');
             if (!time) return;
             const now = new Date();
@@ -3869,7 +3903,7 @@ async function _runRevenueWatcherOnce(): Promise<void> {
         _extCtx?.globalState.update(_REVENUE_LAST_SEEN_TS_KEY, newest.ts_epoch);
         _extCtx?.globalState.update(_REVENUE_LAST_SEEN_KEY, newest.id);
     } catch (e: any) {
-        console.warn('[Connect AI] revenue watcher tick 실패:', e?.message || e);
+        console.warn('[Axios AI] revenue watcher tick 실패:', e?.message || e);
     }
 }
 
@@ -4178,7 +4212,7 @@ async function scaffoldDeveloperProject(name: string, template: 'vite-vanilla' |
 <body class="bg-zinc-950 text-zinc-100 min-h-screen flex items-center justify-center">
   <main class="text-center space-y-4">
     <h1 class="text-4xl font-bold">${safe}</h1>
-    <p class="text-zinc-400">Connect AI · Developer 에이전트가 만든 페이지</p>
+    <p class="text-zinc-400">Axios AI · Developer 에이전트가 만든 페이지</p>
   </main>
 </body>
 </html>
@@ -5138,7 +5172,7 @@ ${AGENTS[id].name}의 system prompt에 자동 주입됩니다._
 
 ## 어떻게 채우나요?
 - 텔레그램에서 \`/skill\` (직전 산출물 자동 승격)
-- VS Code 명령 팔레트: \`Connect AI: 방금 산출물 → 스킬로 저장\`
+- VS Code 명령 팔레트: \`Axios AI: 방금 산출물 → 스킬로 저장\`
 - 직접 이 폴더에 \`<주제>.md\` 파일을 만들어도 됩니다 (\`# 제목\` + 본문)
 
 \`README.md\` 자체는 system prompt에 주입되지 않습니다.
@@ -5178,7 +5212,7 @@ ${presets}
   // .gitignore — 시크릿과 캐시 보호
   const giPath = path.join(dir, '.gitignore');
   const desiredGi =
-`# 자동 생성 — Connect AI 1인 기업 모드
+`# 자동 생성 — Axios AI 1인 기업 모드
 # 시크릿·API 키 보호
 _agents/*/config.md
 # 도구 설정 JSON 안에 API 키·텔레그램 봇 토큰이 들어갈 수 있어 git에서 제외
@@ -5243,7 +5277,7 @@ _tmp/
 5. 지식 베이스 (\`10_Wiki/\`)
 
 ## 다른 PC로 옮길 때
-1. 새 PC에 Connect AI 설치
+1. 새 PC에 Axios AI 설치
 2. 👔 모드 ON → "📥 다른 PC에서 가져오기" 선택
 3. GitHub URL 입력 → 자동 clone
 4. 끝.
@@ -5747,7 +5781,7 @@ function _seedBundledTemplates(agentId: string, targetDir: string) {
       _copyDirRecursive(src, dst);
     }
   } catch (err) {
-    console.error('[Connect AI] 템플릿 시드 실패:', err);
+    console.error('[Axios AI] 템플릿 시드 실패:', err);
   }
 }
 
@@ -6537,10 +6571,8 @@ const AGENT_TOOLS_CATALOG: Record<string, { tool: string; desc: string; planned?
         { tool: 'analytics_pull', desc: '주간 인사이트 (조회수·시청 지속률·구독 전환)', planned: true }
     ],
     instagram: [
-        { tool: 'instagram_account', desc: 'Meta Graph API OAuth (비즈니스 계정)', planned: true },
-        { tool: 'feed_poster', desc: '피드/스토리/릴스 게시 (Draft → 승인 → 게시)', planned: true },
-        { tool: 'dm_responder', desc: 'DM·댓글 분류 + 답글 초안', planned: true },
-        { tool: 'insights_pull', desc: '도달·참여·팔로워 추이', planned: true }
+        { tool: 'instagram_account', desc: '인스타그램 비즈니스 계정 지표 종합 분석 및 진단' },
+        { tool: 'threads_account', desc: '스레드 계정 지표 및 소통 종합 분석' }
     ],
     designer: [
         { tool: 'image_local', desc: '로컬 SDXL/FLUX 이미지 생성 (오프라인 정체성)', planned: true },
@@ -6709,8 +6741,83 @@ function _seedAgentToolsIfMissing(agentId: string) {
       const toolsDir = path.join(getCompanyDir(), '_agents', agentId, 'tools');
       fs.mkdirSync(toolsDir, { recursive: true });
       _seedBusinessPaypalRevenue(toolsDir);
+    } else if (agentId === 'instagram') {
+      const toolsDir = path.join(getCompanyDir(), '_agents', agentId, 'tools');
+      fs.mkdirSync(toolsDir, { recursive: true });
+      _seedInstagramAccount(toolsDir);
+      _seedThreadsTools(toolsDir);
     }
   } catch { /* ignore */ }
+}
+
+function _seedInstagramAccount(toolsDir: string) {
+  try {
+    const py = _loadToolSeed('instagram/instagram_account.py');
+    const md = _loadToolSeed('instagram/instagram_account.md');
+    const json = JSON.stringify({
+      META_ACCESS_TOKEN: '',
+      INSTAGRAM_BUSINESS_ID: '',
+      _schema: {
+        META_ACCESS_TOKEN: { label: '🔑 Meta Access Token', hint: 'Meta for Developers에서 발급한 Instagram Graph API Access Token' },
+        INSTAGRAM_BUSINESS_ID: { label: '🆔 Instagram Business Account ID', hint: 'Instagram Business Account ID' }
+      }
+    }, null, 2);
+    _seedFileForceUpgrade(path.join(toolsDir, 'instagram_account.py'), py, 'instagram_account_v4');
+    _mergeSchemaIntoJson(path.join(toolsDir, 'instagram_account.json'), json);
+    _seedFileForceUpgrade(path.join(toolsDir, 'instagram_account.md'), md, 'instagram_account_v4');
+  } catch (e) {
+    console.warn('[seedInstagramAccount] failed:', e);
+  }
+}
+
+function _seedThreadsTools(toolsDir: string) {
+  try {
+    // Delete obsolete Threads tools (poster, commenter, analyzer)
+    const obsoleteFiles = [
+      'threads_poster.py',
+      'threads_poster.md',
+      'threads_poster.json',
+      'threads_commenter.py',
+      'threads_commenter.md',
+      'threads_commenter.json',
+      'threads_analyzer.py',
+      'threads_analyzer.md',
+      'threads_analyzer.json'
+    ];
+    for (const f of obsoleteFiles) {
+      try {
+         const fp = path.join(toolsDir, f);
+         if (fs.existsSync(fp)) {
+           fs.unlinkSync(fp);
+         }
+      } catch {}
+    }
+
+    // Force regenerate tools.md for instagram agent so obsolete tools are removed
+    try {
+      const manifestPath = path.join(path.dirname(toolsDir), 'tools.md');
+      if (fs.existsSync(manifestPath)) {
+        fs.unlinkSync(manifestPath);
+      }
+    } catch {}
+
+    // Seed threads_account (connection + account analysis)
+    const accountPy = _loadToolSeed('instagram/threads_account.py');
+    const accountMd = _loadToolSeed('instagram/threads_account.md');
+    const json = JSON.stringify({
+      THREADS_ACCESS_TOKEN: '',
+      THREADS_USER_ID: '',
+      _schema: {
+        THREADS_ACCESS_TOKEN: { label: '🔑 Threads Access Token', hint: 'Meta for Developers에서 발급한 Threads용 Access Token' },
+        THREADS_USER_ID: { label: '🆔 Threads User ID', hint: 'Threads API 호출용 User ID' }
+      }
+    }, null, 2);
+    _seedFileForceUpgrade(path.join(toolsDir, 'threads_account.py'), accountPy, 'threads_account_v4');
+    _mergeSchemaIntoJson(path.join(toolsDir, 'threads_account.json'), json);
+    _seedFileForceUpgrade(path.join(toolsDir, 'threads_account.md'), accountMd, 'threads_account_v4');
+  } catch (e) {
+    console.warn('[seedThreadsTools] failed:', e);
+  }
 }
 
 /* v2.89.121 — 비즈니스 에이전트 도구 시드. PayPal Developer API 직결. */
@@ -6789,7 +6896,7 @@ function _seedDeveloperWebInit(toolsDir: string) {
       OUTPUT_DIR: {
         type: 'text',
         label: '🗂️ 부모 폴더',
-        hint: '비우면 ~/connect-ai-projects/. 다른 위치 원하면 절대경로.',
+        hint: '비우면 ~/axios-ai-projects/. 다른 위치 원하면 절대경로.',
       },
     },
   }, null, 2);
@@ -6932,7 +7039,7 @@ function _seedEditorMusicStudioSetup(toolsDir: string) {
       INSTALL_DIR: {
         type: 'text',
         label: '📁 설치 위치',
-        hint: '비워두면 ~/connect-ai-music/. 외장 디스크 등 변경 가능',
+        hint: '비워두면 ~/axios-ai-music/. 외장 디스크 등 변경 가능',
       },
     },
   }, null, 2);
@@ -7331,7 +7438,7 @@ const CEO_CHAT_PROMPT = _loadPrompt('ceo-chat.md');
 type SecretaryBridgeMode = 'off' | 'output_only' | 'full';
 function readSecretaryBridgeMode(): SecretaryBridgeMode {
     try {
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const v = (cfg.get<string>('secretaryBridgeMode') || 'off').trim().toLowerCase();
         if (v === 'output_only' || v === 'full') return v;
     } catch { /* fall through to default */ }
@@ -7592,7 +7699,7 @@ async function _safeGitAutoSync(brainDir: string, commitMsg: string, provider: a
         // (사용자가 settings.json에서 직접 폴더 경로를 입력한 경우에도 작동하도록 함)
         const isRepo = gitExecSafe(['status'], brainDir) !== null;
         if (!isRepo) {
-            const repoUrl = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+            const repoUrl = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
             const cleanRepo = repoUrl ? validateGitRemoteUrl(repoUrl) : null;
             if (!cleanRepo) {
                 // GitHub URL도 없음 → 사용자가 sync 의도를 표현한 적이 없음. 조용히 종료.
@@ -7617,7 +7724,7 @@ async function _safeGitAutoSync(brainDir: string, commitMsg: string, provider: a
         // No remote configured → try to pull from settings, otherwise stay local.
         const existingRemote = gitExecSafe(['remote', 'get-url', 'origin'], brainDir)?.trim() || '';
         if (!existingRemote) {
-            const repoUrl = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+            const repoUrl = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
             const cleanRepo = repoUrl ? validateGitRemoteUrl(repoUrl) : null;
             if (!cleanRepo) {
                 notify(`✅ 지식이 로컬에 안전하게 저장되었습니다.\n\n💡 **Tip:** 깃허브 백업을 원하시면 🧠 메뉴 → '깃허브 동기화'를 눌러주세요!`, 3000);
@@ -7685,7 +7792,7 @@ async function _safeGitAutoSync(brainDir: string, commitMsg: string, provider: a
 
 /* Company-folder git sync (separate from brain). Only meaningful when the
    company is DETACHED (lives outside <brain>/_company/) AND the user has
-   set `connectAiLab.companyRepo`. Otherwise no-op — company is already
+   set `axiosAi.companyRepo`. Otherwise no-op — company is already
    covered by brain sync (nested) or user hasn't asked for backup. Uses
    its own lock so it can run in parallel with brain sync. */
 async function _safeGitAutoSyncCompany(commitMsg: string, provider: any = null) {
@@ -7695,7 +7802,7 @@ async function _safeGitAutoSyncCompany(commitMsg: string, provider: any = null) 
     const isNested = path.normalize(companyDir).startsWith(path.normalize(brainDir) + path.sep);
     if (isNested) return; // brain sync covers it
     if (!fs.existsSync(companyDir)) return;
-    const repoUrl = vscode.workspace.getConfiguration('connectAiLab').get<string>('companyRepo', '');
+    const repoUrl = vscode.workspace.getConfiguration('axiosAi').get<string>('companyRepo', '');
     const cleanRepo = repoUrl ? validateGitRemoteUrl(repoUrl) : null;
     if (!cleanRepo) return; // user hasn't asked for company backup yet
 
@@ -7759,6 +7866,15 @@ async function _safeGitAutoSyncCompany(commitMsg: string, provider: any = null) 
 let _activeChatProvider: SidebarChatProvider | null = null;
 let _extCtx: vscode.ExtensionContext | null = null;
 
+export async function executeSeraRoutedCommand(agent: string, command: string): Promise<void> {
+    const formatted = agent && agent !== 'all' ? `[${agent}] ${command}` : command;
+    if (_activeChatProvider?.sendPromptFromExtension) {
+        await _activeChatProvider.sendPromptFromExtension(formatted, { fromTelegram: true, corporate: true });
+    } else {
+        throw new Error("Chat provider is not active.");
+    }
+}
+
 // One-time recovery for users upgrading from <=2.22.5, where the first-run
 // auto-detect wrote the engine URL to a typo'd config key (`ollamaBase`) that
 // VS Code silently dropped. Symptom: defaultModel is set to an LM Studio name
@@ -7767,7 +7883,7 @@ function _recoverEngineUrlIfMismatched(context: vscode.ExtensionContext) {
     if (context.globalState.get('engineUrlRecovered')) return;
     (async () => {
         try {
-            const cfg = vscode.workspace.getConfiguration('connectAiLab');
+            const cfg = vscode.workspace.getConfiguration('axiosAi');
             const url = (cfg.get<string>('ollamaUrl') || '').trim();
             const model = (cfg.get<string>('defaultModel') || '').trim();
             if (!model) {
@@ -7799,11 +7915,11 @@ function _recoverEngineUrlIfMismatched(context: vscode.ExtensionContext) {
             else if (await probe('http://127.0.0.1:11434', false)) target = 'http://127.0.0.1:11434';
             if (target && target !== url) {
                 await cfg.update('ollamaUrl', target, vscode.ConfigurationTarget.Global);
-                console.log(`Connect AI: engine URL recovered → ${target} (model: ${model})`);
+                console.log(`Axios AI: engine URL recovered → ${target} (model: ${model})`);
             }
             await context.globalState.update('engineUrlRecovered', true);
         } catch (e) {
-            console.error('Connect AI: engine URL recovery failed', e);
+            console.error('Axios AI: engine URL recovery failed', e);
         }
     })();
 }
@@ -7815,7 +7931,7 @@ function _recoverEngineUrlIfMismatched(context: vscode.ExtensionContext) {
 function _autoPickInstalledModelIfMissing() {
     (async () => {
         try {
-            const cfg = vscode.workspace.getConfiguration('connectAiLab');
+            const cfg = vscode.workspace.getConfiguration('axiosAi');
             const current = (cfg.get<string>('defaultModel') || '').trim();
             if (current) return; // 사용자가 이미 골랐음 — 절대 건드리지 않음
             const url = (cfg.get<string>('ollamaUrl') || 'http://127.0.0.1:11434').trim();
@@ -7826,7 +7942,7 @@ function _autoPickInstalledModelIfMissing() {
                     const models = (r.data?.data || []) as Array<{ id: string }>;
                     if (models.length > 0) {
                         await cfg.update('defaultModel', models[0].id, vscode.ConfigurationTarget.Global);
-                        console.log(`Connect AI: auto-picked LM Studio model → ${models[0].id}`);
+                        console.log(`Axios AI: auto-picked LM Studio model → ${models[0].id}`);
                     }
                 } catch { /* LM Studio 미실행 — 다음 활성화 때 다시 시도 */ }
             } else {
@@ -7837,19 +7953,19 @@ function _autoPickInstalledModelIfMissing() {
                         // 가장 작은 모델부터 — 첫 호출 실패 진입 장벽 최소화
                         models.sort((a, b) => (a.size || 0) - (b.size || 0));
                         await cfg.update('defaultModel', models[0].name, vscode.ConfigurationTarget.Global);
-                        console.log(`Connect AI: auto-picked Ollama model → ${models[0].name} (${(models[0].size / 1e9).toFixed(2)} GB)`);
+                        console.log(`Axios AI: auto-picked Ollama model → ${models[0].name} (${(models[0].size / 1e9).toFixed(2)} GB)`);
                     }
                 } catch { /* Ollama 미실행 — 다음 활성화 때 다시 시도 */ }
             }
         } catch (e) {
-            console.error('Connect AI: auto-pick model failed', e);
+            console.error('Axios AI: auto-pick model failed', e);
         }
     })();
 }
 
 export function activate(context: vscode.ExtensionContext) {
-    vscode.window.showInformationMessage('🔥 Connect AI V2 활성화 완료!');
-    console.log('Connect AI extension activated.');
+    vscode.window.showInformationMessage('🔥 Axios AI V2 활성화 완료!');
+    console.log('Axios AI extension activated.');
 
     _extCtx = context;
     /* v2.89.138 — extensionUri 즉시 세팅. 이전엔 "우리 회사 대시보드" 명령
@@ -7862,7 +7978,7 @@ export function activate(context: vscode.ExtensionContext) {
        설정에서 Python 경로 바꾸면 다음 도구 실행부터 새 경로 사용. */
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('connectAiLab.pythonPath')) {
+            if (e.affectsConfiguration('axiosAi.pythonPath')) {
                 _invalidatePythonCmdCache();
                 vscode.window.setStatusBarMessage('🐍 Python 경로 설정 변경 — 다음 도구 실행 시 적용', 4000);
             }
@@ -7961,8 +8077,8 @@ export function activate(context: vscode.ExtensionContext) {
                     if (lmRes.data?.data?.length > 0) {
                         engineName = 'LM Studio';
                         modelName = lmRes.data.data[0].id;
-                        await vscode.workspace.getConfiguration('connectAiLab').update('ollamaUrl', 'http://127.0.0.1:1234', vscode.ConfigurationTarget.Global);
-                        await vscode.workspace.getConfiguration('connectAiLab').update('defaultModel', modelName, vscode.ConfigurationTarget.Global);
+                        await vscode.workspace.getConfiguration('axiosAi').update('ollamaUrl', 'http://127.0.0.1:1234', vscode.ConfigurationTarget.Global);
+                        await vscode.workspace.getConfiguration('axiosAi').update('defaultModel', modelName, vscode.ConfigurationTarget.Global);
                     }
                 } catch {}
 
@@ -7972,8 +8088,8 @@ export function activate(context: vscode.ExtensionContext) {
                         if (ollamaRes.data?.models?.length > 0) {
                             engineName = 'Ollama';
                             modelName = ollamaRes.data.models[0].name;
-                            await vscode.workspace.getConfiguration('connectAiLab').update('ollamaUrl', 'http://127.0.0.1:11434', vscode.ConfigurationTarget.Global);
-                            await vscode.workspace.getConfiguration('connectAiLab').update('defaultModel', modelName, vscode.ConfigurationTarget.Global);
+                            await vscode.workspace.getConfiguration('axiosAi').update('ollamaUrl', 'http://127.0.0.1:11434', vscode.ConfigurationTarget.Global);
+                            await vscode.workspace.getConfiguration('axiosAi').update('defaultModel', modelName, vscode.ConfigurationTarget.Global);
                         }
                     } catch {}
                 }
@@ -7990,7 +8106,7 @@ export function activate(context: vscode.ExtensionContext) {
                 if (engineName) {
                     vscode.window.showInformationMessage(`🧠 자동 설정 완료! ${engineName} 감지됨 → 모델: ${modelName}`);
                 } else {
-                    vscode.window.showInformationMessage('🧠 Connect AI 준비 완료! LM Studio 또는 Ollama를 실행하면 자동 연결됩니다.');
+                    vscode.window.showInformationMessage('🧠 Axios AI 준비 완료! LM Studio 또는 Ollama를 실행하면 자동 연결됩니다.');
                 }
             } catch (e) {
                 // 마법사 실패해도 무시 (익스텐션 정상 작동)
@@ -8000,7 +8116,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // ==========================================
-    // EZER AI <-> Connect AI Bridge Server (Port 4825)
+    // EZER AI <-> Axios AI Bridge Server (Port 4825)
     // ==========================================
     try {
         const server = http.createServer((req, res) => {
@@ -8018,13 +8134,13 @@ export function activate(context: vscode.ExtensionContext) {
                 const brainDir = _getBrainDir();
                 const brainCount = fs.existsSync(brainDir) ? provider._findBrainFiles(brainDir).length : 0;
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                /* v2.89.127 — 신원·버전 정보 추가. 다른 Connect AI 인스턴스가 충돌 시
+                /* v2.89.127 — 신원·버전 정보 추가. 다른 Axios AI 인스턴스가 충돌 시
                    이 응답 보고 "우리 거다 → 조용히 공유 모드 / 옛 버전이면 자동 인계" 판단. */
                 res.end(JSON.stringify({
                     status: 'ok',
-                    msg: 'Connect AI Bridge Ready',
-                    app: 'connect-ai-bridge',
-                    version: _CONNECT_AI_VERSION,
+                    msg: 'Axios AI Bridge Ready',
+                    app: 'axios-ai-bridge',
+                    version: _AXIOS_AI_VERSION,
                     pid: process.pid,
                     config: getConfig(),
                     brain: { fileCount: brainCount, enabled: provider._brainEnabled }
@@ -8037,7 +8153,7 @@ export function activate(context: vscode.ExtensionContext) {
                         const parsed = JSON.parse(body);
                         const promptStr = typeof parsed.prompt === 'string' ? parsed.prompt : '자동 접수된 문제';
 
-                        // 웹사이트에서 전송된 문제를 Connect AI 채팅창으로 실시간 보고
+                        // 웹사이트에서 전송된 문제를 Axios AI 채팅창으로 실시간 보고
                         provider.sendPromptFromExtension(`[A.U 입학시험 수신] ${promptStr}`);
 
                         // 실제 AI 엔진으로 문제를 전달하여 답안을 받아옴
@@ -8121,7 +8237,7 @@ export function activate(context: vscode.ExtensionContext) {
                             const isTimeout = apiErr.code === 'ETIMEDOUT' || apiErr.code === 'ECONNABORTED' || apiErr.message?.includes('timeout');
                             const isConn = apiErr.code === 'ECONNREFUSED' || apiErr.code === 'ENOTFOUND';
                             const errDetail = isTimeout
-                                ? `⏱ 모델이 시간 안에 답을 못 냈어요. 다음 중 하나 시도하세요:\n  • 더 작은 모델로 변경 (gemma2:2b, qwen2.5:1.5b 등)\n  • 안티그래비티 설정에서 connectAiLab.requestTimeout을 600(10분) 이상으로`
+                                ? `⏱ 모델이 시간 안에 답을 못 냈어요. 다음 중 하나 시도하세요:\n  • 더 작은 모델로 변경 (gemma2:2b, qwen2.5:1.5b 등)\n  • 안티그래비티 설정에서 axiosAi.requestTimeout을 600(10분) 이상으로`
                                 : isConn
                                 ? `🔌 AI 엔진에 연결 못함. Ollama/LM Studio가 켜져 있는지 확인해주세요.\n  • Ollama: 터미널에서 \`ollama serve\`\n  • LM Studio: 앱 실행 후 Local Server 시작`
                                 : `AI 엔진 호출 실패: ${apiErr.message || '알 수 없는 원인'}`;
@@ -8208,8 +8324,8 @@ export function activate(context: vscode.ExtensionContext) {
                 (async () => {
                     // Unconditional reception signal — proves the bridge endpoint
                     // was hit, regardless of folder state / sidebar / graph.
-                    console.log('[Connect AI Bridge] /api/brain-inject hit @', new Date().toISOString());
-                    vscode.window.setStatusBarMessage('🛬 Connect AI: 주입 요청 수신', 4000);
+                    console.log('[Axios AI Bridge] /api/brain-inject hit @', new Date().toISOString());
+                    vscode.window.setStatusBarMessage('🛬 Axios AI: 주입 요청 수신', 4000);
                     try {
                         const body = await readRequestBody(req);
                         const parsed = JSON.parse(body);
@@ -8299,8 +8415,8 @@ export function activate(context: vscode.ExtensionContext) {
                    바로 이 스킬을 <run_command>로 사용할 수 있음. brain-inject와
                    같은 패턴이지만 대상이 _agents/{agent}/tools/{name}.py임. */
                 (async () => {
-                    console.log('[Connect AI Bridge] /api/skill-inject hit @', new Date().toISOString());
-                    vscode.window.setStatusBarMessage('🛠 Connect AI: 스킬팩 수신', 4000);
+                    console.log('[Axios AI Bridge] /api/skill-inject hit @', new Date().toISOString());
+                    vscode.window.setStatusBarMessage('🛠 Axios AI: 스킬팩 수신', 4000);
                     try {
                         const body = await readRequestBody(req);
                         const parsed = JSON.parse(body);
@@ -8385,8 +8501,8 @@ export function activate(context: vscode.ExtensionContext) {
                    코다리 같은 에이전트가 다음 작업에 자동 참조.
                    payload: { agent, name, manifest, readme, files: {filename: content} } */
                 (async () => {
-                    console.log('[Connect AI Bridge] /api/template-inject hit @', new Date().toISOString());
-                    vscode.window.setStatusBarMessage('📋 Connect AI: 템플릿팩 수신', 4000);
+                    console.log('[Axios AI Bridge] /api/template-inject hit @', new Date().toISOString());
+                    vscode.window.setStatusBarMessage('📋 Axios AI: 템플릿팩 수신', 4000);
                     try {
                         const body = await readRequestBody(req);
                         const parsed = JSON.parse(body);
@@ -8485,20 +8601,20 @@ export function activate(context: vscode.ExtensionContext) {
         let _bridgeRetryCount = 0;
         const _tryStartBridge = (isRetry = false) => {
             server.listen(4825, '127.0.0.1', () => {
-                console.log('[Connect AI Bridge] listening on http://127.0.0.1:4825');
+                console.log('[Axios AI Bridge] listening on http://127.0.0.1:4825');
                 if (isRetry) {
                     /* 성공 명시 popup — 사용자가 분명히 봄 */
                     vscode.window.showInformationMessage(
                         '🟢 Bridge 인계 완료! 이 인스턴스가 메인 (포트 4825). EZER 연동 정상 작동.'
                     );
-                    vscode.window.setStatusBarMessage('🟢 Connect AI Bridge: 이 인스턴스가 메인', 8000);
+                    vscode.window.setStatusBarMessage('🟢 Axios AI Bridge: 이 인스턴스가 메인', 8000);
                 } else {
-                    vscode.window.setStatusBarMessage('🟢 Connect AI Bridge: 포트 4825 listening', 4000);
+                    vscode.window.setStatusBarMessage('🟢 Axios AI Bridge: 포트 4825 listening', 4000);
                 }
             });
         };
         server.on('error', async (err: any) => {
-            console.error('[Connect AI Bridge] server error:', err);
+            console.error('[Axios AI Bridge] server error:', err);
             if (err?.code === 'EADDRINUSE') {
                 _bridgeRetryCount++;
                 if (_bridgeRetryCount > 2) {
@@ -8515,20 +8631,20 @@ export function activate(context: vscode.ExtensionContext) {
                    이렇게 하면 95% 사용자는 EADDRINUSE 마주칠 일 자체가 없음. */
                 const probe = await _probeExistingBridge();
 
-                if (probe.ours && probe.version === _CONNECT_AI_VERSION) {
+                if (probe.ours && probe.version === _AXIOS_AI_VERSION) {
                     /* 같은 버전 — 다른 윈도우/인스턴스가 메인. 조용히 공유 모드. */
-                    console.log(`[Connect AI Bridge] 공유 모드 — 다른 인스턴스(PID ${probe.pid})가 이미 메인`);
+                    console.log(`[Axios AI Bridge] 공유 모드 — 다른 인스턴스(PID ${probe.pid})가 이미 메인`);
                     vscode.window.setStatusBarMessage(`🔗 Bridge 공유 모드 (메인: 다른 윈도우)`, 5000);
                     return;
                 }
 
-                if (probe.ours && probe.version && _versionLessThan(probe.version, _CONNECT_AI_VERSION)) {
+                if (probe.ours && probe.version && _versionLessThan(probe.version, _AXIOS_AI_VERSION)) {
                     /* 옛 버전 — 자동 인계. 사용자에게 한 줄 알림만. */
-                    console.log(`[Connect AI Bridge] 옛 버전(${probe.version}) 감지 → 자동 인계 시작`);
+                    console.log(`[Axios AI Bridge] 옛 버전(${probe.version}) 감지 → 자동 인계 시작`);
                     const killed = _killProcessesOnPort(4825);
                     if (killed.length > 0) {
                         vscode.window.setStatusBarMessage(
-                            `🔄 옛 Bridge(${probe.version}) 자동 인계 → ${_CONNECT_AI_VERSION}`, 6000
+                            `🔄 옛 Bridge(${probe.version}) 자동 인계 → ${_AXIOS_AI_VERSION}`, 6000
                         );
                         setTimeout(() => {
                             try { (server as any).close(() => _tryStartBridge(true)); }
@@ -8542,7 +8658,7 @@ export function activate(context: vscode.ExtensionContext) {
 
                 /* 미상의 앱이 4825 잡고 있음 → 옛 사용자 확인 다이얼로그 */
                 const choice = await vscode.window.showWarningMessage(
-                    '🚫 포트 4825가 다른 앱에 사용 중입니다 (Connect AI 아님).\n자동 인계할까요?',
+                    '🚫 포트 4825가 다른 앱에 사용 중입니다 (Axios AI 아님).\n자동 인계할까요?',
                     { modal: false },
                     '🎯 인계 (다른 앱 종료)',
                     '🚫 이번엔 보기 모드'
@@ -8561,21 +8677,21 @@ export function activate(context: vscode.ExtensionContext) {
                         );
                     }
                 } else {
-                    vscode.window.setStatusBarMessage('🟡 Connect AI Bridge: 보기 모드 (포트 충돌)', 6000);
+                    vscode.window.setStatusBarMessage('🟡 Axios AI Bridge: 보기 모드 (포트 충돌)', 6000);
                 }
             } else {
-                vscode.window.showErrorMessage(`🚫 Connect AI Bridge 시작 실패: ${err?.message || err}`);
+                vscode.window.showErrorMessage(`🚫 Axios AI Bridge 시작 실패: ${err?.message || err}`);
             }
         });
         _tryStartBridge(false);
     } catch (e: any) {
-        console.error('[Connect AI Bridge] failed to start:', e);
-        vscode.window.showErrorMessage(`🚫 Connect AI Bridge 초기화 실패: ${e?.message || e}`);
+        console.error('[Axios AI Bridge] failed to start:', e);
+        vscode.window.showErrorMessage(`🚫 Axios AI Bridge 초기화 실패: ${e?.message || e}`);
     }
     // ==========================================
 
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider('connect-ai-lab-v2-view', provider, {
+        vscode.window.registerWebviewViewProvider('axios-ai-v2-view', provider, {
             webviewOptions: { retainContextWhenHidden: true }
         })
     );
@@ -8590,13 +8706,13 @@ export function activate(context: vscode.ExtensionContext) {
     _ytDashboardProvider = new YouTubeDashboardProvider();
 
     // Persistent status bar — always-visible entry into the dashboard.
-    // Replaces the old in-sidebar CTAs. Click → "Connect AI: 회사 둘러보기".
+    // Replaces the old in-sidebar CTAs. Click → "Axios AI: 회사 둘러보기".
     const dashStatusBar = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left, 100
     );
     dashStatusBar.text = '$(organization) 우리 회사';
     dashStatusBar.tooltip = '우리 회사 — 에이전트 팀 + 오늘의 일 한 눈에';
-    dashStatusBar.command = 'connectAiLab.dashboard.open';
+    dashStatusBar.command = 'axiosAi.dashboard.open';
     dashStatusBar.show();
     context.subscriptions.push(dashStatusBar);
 
@@ -8606,7 +8722,7 @@ export function activate(context: vscode.ExtensionContext) {
     const aprStatusBar = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left, 99
     );
-    aprStatusBar.command = 'connectAiLab.dashboard.open';
+    aprStatusBar.command = 'axiosAi.dashboard.open';
     aprStatusBar.tooltip = '승인 대기 액션이 있어요 — 클릭해서 처리';
     const refreshAprBadge = () => {
         try {
@@ -8624,7 +8740,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(aprStatusBar);
     setInterval(refreshAprBadge, 8000);
     context.subscriptions.push(
-        vscode.commands.registerCommand('connectAiLab.youtube.connectOAuth', async () => {
+        vscode.commands.registerCommand('axiosAi.youtube.connectOAuth', async () => {
             const r = await startYouTubeOAuthFlow();
             if (r.ok) {
                 vscode.window.showInformationMessage(r.message);
@@ -8634,7 +8750,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showWarningMessage(r.message);
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.dashboard.open', () => {
+        vscode.commands.registerCommand('axiosAi.dashboard.open', () => {
             try {
                 _dashboardExtensionUri = context.extensionUri;
                 CompanyDashboardPanel.createOrShow(context.extensionUri);
@@ -8644,24 +8760,24 @@ export function activate(context: vscode.ExtensionContext) {
                 console.error('[dashboard.open] failed:', e);
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.apiConnections.open', () => {
+        vscode.commands.registerCommand('axiosAi.apiConnections.open', () => {
             ApiConnectionsPanel.createOrShow();
         }),
         /* v2.89.137 — 매출 대시보드 (PayPal 시각화) */
-        vscode.commands.registerCommand('connectAiLab.revenueDashboard.open', () => {
+        vscode.commands.registerCommand('axiosAi.revenueDashboard.open', () => {
             RevenueDashboardPanel.createOrShow();
         })
     );
     context.subscriptions.push(
-        vscode.commands.registerCommand('connectAiLab.tasks.refresh', () => {
+        vscode.commands.registerCommand('axiosAi.tasks.refresh', () => {
             _taskTreeProvider?.refresh();
         }),
-        vscode.commands.registerCommand('connectAiLab.tasks.markDone', (item: TaskTreeItem) => {
+        vscode.commands.registerCommand('axiosAi.tasks.markDone', (item: TaskTreeItem) => {
             if (item?.task) {
                 updateTrackerTask(item.task.id, { status: 'done', evidence: '사이드바에서 완료 처리' });
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.tasks.cancel', async (item: TaskTreeItem) => {
+        vscode.commands.registerCommand('axiosAi.tasks.cancel', async (item: TaskTreeItem) => {
             if (!item?.task) return;
             const ok = await vscode.window.showWarningMessage(
                 `"${item.task.title}" 취소할까요?`,
@@ -8672,7 +8788,7 @@ export function activate(context: vscode.ExtensionContext) {
                 updateTrackerTask(item.task.id, { status: 'cancelled', evidence: '사이드바에서 취소' });
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.tasks.setPriority', async (item: TaskTreeItem) => {
+        vscode.commands.registerCommand('axiosAi.tasks.setPriority', async (item: TaskTreeItem) => {
             if (!item?.task) return;
             const pick = await vscode.window.showQuickPick(
                 [
@@ -8687,7 +8803,7 @@ export function activate(context: vscode.ExtensionContext) {
                 updateTrackerTask(item.task.id, { priority: pick.value });
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.tasks.openTrackerJson', async () => {
+        vscode.commands.registerCommand('axiosAi.tasks.openTrackerJson', async () => {
             try {
                 const p = path.join(getCompanyDir(), '_shared', 'tracker.json');
                 if (!fs.existsSync(p)) {
@@ -8702,7 +8818,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         /* v2.89.114 — LLM 연결 진단 도구. 사용자가 "왜 안 되는지" 한 번에 파악.
            Ollama 11434, LM Studio 1234, 설정된 baseUrl 모두 체크해서 단계별 결과 표시. */
-        vscode.commands.registerCommand('connectAiLab.diagnoseConnection', async () => {
+        vscode.commands.registerCommand('axiosAi.diagnoseConnection', async () => {
             const out: string[] = [];
             const ok = (s: string) => out.push(`✅ ${s}`);
             const warn = (s: string) => out.push(`⚠️ ${s}`);
@@ -8775,7 +8891,7 @@ export function activate(context: vscode.ExtensionContext) {
             /* v2.89.152 — Python 환경 진단. paypal_revenue·my_videos_check 같은 .py 도구
                실행이 exit 1 로 떨어질 때 어디서 막혔는지 사용자가 직접 진단. */
             out.push('');
-            out.push('## 🐍 Python 환경');
+            out.push('## 🐍 Python 환경 및 라이브러리');
             try {
                 const _invalidate = require('child_process');
                 _invalidatePythonCmdCache();
@@ -8787,8 +8903,34 @@ export function activate(context: vscode.ExtensionContext) {
                     const ver = ((r.stdout || '') + (r.stderr || '')).trim();
                     if (r.status === 0 && /python\s+3/i.test(ver)) {
                         ok(`Python 3 확인: ${ver}`);
+                        
+                        // Check requests dependency
+                        try {
+                            const reqCheck = _invalidate.spawnSync(parts[0], parts.slice(1).concat(['-c', 'import requests']), { encoding: 'utf-8', timeout: 4000 });
+                            if (reqCheck.status === 0) {
+                                ok(`Python 'requests' 라이브러리 설치 확인 완료 (API 호출 가능)`);
+                            } else {
+                                warn(`Python 'requests' 라이브러리가 설치되어 있지 않습니다. (API 호출이 불가능할 수 있음)`);
+                                info(`  → 해결: 터미널에서 \`${pyCmd} -m pip install requests\` 또는 \`pip install requests\` 를 실행해 설치하세요.`);
+                            }
+                        } catch (reqErr: any) {
+                            warn(`Python 'requests' 라이브러리 검사 중 오류: ${reqErr?.message || reqErr}`);
+                        }
                     } else if (/python\s+3\.\d/i.test(ver)) {
                         ok(`Python 3 (status ${r.status}): ${ver}`);
+                        
+                        // Check requests dependency
+                        try {
+                            const reqCheck = _invalidate.spawnSync(parts[0], parts.slice(1).concat(['-c', 'import requests']), { encoding: 'utf-8', timeout: 4000 });
+                            if (reqCheck.status === 0) {
+                                ok(`Python 'requests' 라이브러리 설치 확인 완료 (API 호출 가능)`);
+                            } else {
+                                warn(`Python 'requests' 라이브러리가 설치되어 있지 않습니다. (API 호출이 불가능할 수 있음)`);
+                                info(`  → 해결: 터미널에서 \`${pyCmd} -m pip install requests\` 또는 \`pip install requests\` 를 실행해 설치하세요.`);
+                            }
+                        } catch (reqErr: any) {
+                            warn(`Python 'requests' 라이브러리 검사 중 오류: ${reqErr?.message || reqErr}`);
+                        }
                     } else {
                         err(`Python 3 미감지. status=${r.status}, output=${ver.slice(0, 100)}`);
                         info(_pythonMissingHint());
@@ -8799,9 +8941,9 @@ export function activate(context: vscode.ExtensionContext) {
                 }
                 /* 사용자 override 표시 */
                 try {
-                    const cfgPy = (vscode.workspace.getConfiguration('connectAiLab').get<string>('pythonPath') || '').trim();
-                    if (cfgPy) info(`사용자 설정 (\`connectAiLab.pythonPath\`): \`${cfgPy}\``);
-                    else info(`사용자 설정 없음 (자동 감지 사용). 직접 지정하려면 명령 팔레트 → "설정 열기" → \`connectAiLab.pythonPath\``);
+                    const cfgPy = (vscode.workspace.getConfiguration('axiosAi').get<string>('pythonPath') || '').trim();
+                    if (cfgPy) info(`사용자 설정 (\`axiosAi.pythonPath\`): \`${cfgPy}\``);
+                    else info(`사용자 설정 없음 (자동 감지 사용). 직접 지정하려면 명령 팔레트 → "설정 열기" → \`axiosAi.pythonPath\``);
                 } catch { /* ignore */ }
                 /* 평행 진단 — 다른 후보 명령들 작동 여부 */
                 const altCmds = process.platform === 'win32'
@@ -8826,14 +8968,81 @@ export function activate(context: vscode.ExtensionContext) {
                 err(`Python 진단 자체 실패: ${pyErr?.message || pyErr}`);
             }
 
+            /* GitHub Second Brain 동기화 진단 추가 */
+            out.push('');
+            out.push('## ☁️ GitHub 제2의 두뇌 동기화 (Git Sync)');
+            try {
+                const _invalidate = require('child_process');
+                const gitAvailable = isGitAvailable();
+                if (!gitAvailable) {
+                    err('git 명령을 찾을 수 없습니다. 시스템에 git이 설치되어 있는지 확인하세요.');
+                    info('  → 해결: https://git-scm.com/downloads 에서 git 설치 후 VS Code를 완전히 재시작하세요.');
+                } else {
+                    ok('git CLI 설치 확인 완료');
+                    
+                    const brainDir = _getBrainDir();
+                    info(`로컬 두뇌 폴더 경로: \`${brainDir}\``);
+                    
+                    const exists = fs.existsSync(brainDir);
+                    if (!exists) {
+                        warn('로컬 두뇌 폴더가 아직 존재하지 않습니다. 첫 지식 주입 시 자동으로 폴더가 생성됩니다.');
+                    } else {
+                        ok('로컬 두뇌 폴더 확인 완료');
+                        
+                        const isRepo = gitExecSafe(['status'], brainDir) !== null;
+                        if (!isRepo) {
+                            warn('로컬 두뇌 폴더가 Git 저장소로 초기화되어 있지 않습니다.');
+                            info('  → 해결: 🧠 메뉴 → \'깃허브 동기화\'를 누르거나 수동으로 `git init`을 실행하세요.');
+                        } else {
+                            ok('Git 저장소 초기화 상태 확인 완료');
+                            
+                            const remoteUrl = gitExecSafe(['remote', 'get-url', 'origin'], brainDir)?.trim() || '';
+                            const secondBrainRepo = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
+                            
+                            if (remoteUrl) {
+                                ok(`Git Remote 등록 확인: \`${remoteUrl}\``);
+                                
+                                // Test connection!
+                                info('GitHub 원격 연결 및 자격 증명 테스트 중 (git ls-remote origin)...');
+                                const testConn = _invalidate.spawnSync('git', ['ls-remote', '-h', 'origin'], {
+                                    cwd: brainDir,
+                                    encoding: 'utf-8',
+                                    timeout: 5000
+                                });
+                                if (testConn.status === 0) {
+                                    ok('GitHub Remote 연결 및 인증 성공! (원격 저장소 통신 정상)');
+                                } else {
+                                    const gitErr = classifyGitError(testConn.stderr || '');
+                                    err(`GitHub Remote 연결/인증 실패: ${gitErr.message}`);
+                                    if (testConn.stderr) {
+                                        info(`상세 에러 내용:\n${testConn.stderr.trim().split('\n').map(l => '    ' + l).join('\n')}`);
+                                    }
+                                }
+                            } else {
+                                warn('Git Remote (origin)이 등록되어 있지 않습니다.');
+                                if (secondBrainRepo) {
+                                    info(`설정된 secondBrainRepo 값: \`${secondBrainRepo}\``);
+                                    info('  → 다음 지식 주입 혹은 동기화 시 자동으로 원격 저장소가 등록됩니다.');
+                                } else {
+                                    warn('두뇌 깃허브 저장소 URL (axiosAi.secondBrainRepo) 설정이 비어있습니다.');
+                                    info('  → 해결: VS Code 설정에서 `axiosAi.secondBrainRepo`에 깃허브 저장소 주소를 입력하세요.');
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (gitDiagErr: any) {
+                err(`Git 동기화 진단 중 실패: ${gitDiagErr?.message || gitDiagErr}`);
+            }
+
             /* 결과 패널 표시 */
             const doc = await vscode.workspace.openTextDocument({
                 language: 'markdown',
-                content: `# 🔍 Connect AI — LLM 연결 진단\n\n_${new Date().toLocaleString('ko-KR')}_\n\n${out.join('\n')}\n\n---\n\n## 자주 막히는 곳\n\n### LM Studio가 처음이면\n1. LM Studio 앱 열기\n2. 좌측 사이드바 'Discover' (🔍) 에서 모델 검색·다운로드 (예: 'Qwen2.5 7B Instruct')\n3. 좌측 사이드바 'Chat' (💬) 가서 모델이 로드되는지 확인 (한 번 채팅해봐야 메모리에 올라옴)\n4. 좌측 사이드바 'Developer' (또는 'Local Server') 가기\n5. **'Start Server' 버튼 클릭** ← 이게 핵심. 시작 안 하면 Connect AI에서 못 봐요.\n6. 화면에 \`http://localhost:1234\` 같은 URL이 보이면 OK\n7. Connect AI 사이드바 위 모델 메뉴에서 모델 선택 → 채팅 시도\n\n### Ollama가 처음이면\n1. \`ollama pull qwen2.5:7b\` (터미널, 한 번만)\n2. \`ollama serve\` 또는 Ollama 앱 실행\n3. Connect AI 모델 메뉴에서 선택 → 채팅\n\n### 그래도 안 되면\n- VS Code/Anti-Gravity 재시작\n- 명령 팔레트 (Cmd+Shift+P) → \`Connect AI: 연결 진단\` 다시 실행\n- 위 결과 스크린샷 + LM Studio 'Developer' 탭 스크린샷을 함께 제보\n`,
+                content: `# 🔍 Axios AI — 종합 연결 및 환경 진단\n\n_${new Date().toLocaleString('ko-KR')}_\n\n${out.join('\n')}\n\n---\n\n## 자주 막히는 곳\n\n### LM Studio가 처음이면\n1. LM Studio 앱 열기\n2. 좌측 사이드바 'Discover' (🔍) 에서 모델 검색·다운로드 (예: 'Qwen2.5 7B Instruct')\n3. 좌측 사이드바 'Chat' (💬) 가서 모델이 로드되는지 확인 (한 번 채팅해봐야 메모리에 올라옴)\n4. 좌측 사이드바 'Developer' (또는 'Local Server') 가기\n5. **'Start Server' 버튼 클릭** ← 이게 핵심. 시작 안 하면 Axios AI에서 못 봐요.\n6. 화면에 \`http://localhost:1234\` 같은 URL이 보이면 OK\n7. Axios AI 사이드바 위 모델 메뉴에서 모델 선택 → 채팅 시도\n\n### Ollama가 처음이면\n1. \`ollama pull qwen2.5:7b\` (터미널, 한 번만)\n2. \`ollama serve\` 또는 Ollama 앱 실행\n3. Axios AI 모델 메뉴에서 선택 → 채팅\n\n### Python requests 관련 오류\n- 인스타그램, 스레드 등의 외부 도구 실행 시 'ImportError: No module named requests' 에러가 나면 다음 명령어로 설치하세요:\n  - \`pip install requests\` 또는 \`python -m pip install requests\`\n\n### GitHub Sync 오류\n1. 깃허브 저장소 주소가 올바른지 확인하세요 (예: https://github.com/username/repo)\n2. 로컬 PC에 git이 설치되어 있고, 로그인 정보가 등록되어 있어야 합니다.\n3. HTTPS 연결 대신 SSH를 이용한다면 SSH 키 등록 상태를 확인하세요.\n\n### 그래도 안 되면\n- VS Code/Anti-Gravity 재시작\n- 명령 팔레트 (Cmd+Shift+P) → \`Axios AI: 연결 진단\` 다시 실행\n`,
             });
             await vscode.window.showTextDocument(doc, { preview: false });
         }),
-        vscode.commands.registerCommand('connectAiLab.dailyBriefing.fireNow', async () => {
+        vscode.commands.registerCommand('axiosAi.dailyBriefing.fireNow', async () => {
             try {
                 await _runDailyBriefingOnce(true);
                 vscode.window.showInformationMessage('🌅 데일리 브리핑이 텔레그램으로 발송됐어요. (토큰 미설정이면 무시됨)');
@@ -8844,7 +9053,7 @@ export function activate(context: vscode.ExtensionContext) {
         /* v2.89.115 — 직전 specialist 산출물을 재사용 가능한 패턴으로 승격.
            Hermes Agent의 self-improving skill 패턴을 1인 기업 컨셉에 맞게
            단순화 (자동 노이즈 X, 사용자가 명시적으로 트리거할 때만). */
-        vscode.commands.registerCommand('connectAiLab.skill.saveLast', async () => {
+        vscode.commands.registerCommand('axiosAi.skill.saveLast', async () => {
             try {
                 const last = _getLastSpecialistOutput();
                 if (!last) {
@@ -8881,7 +9090,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`스킬 저장 실패: ${e?.message || e}`);
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.youtube.refreshCommentQueue', async () => {
+        vscode.commands.registerCommand('axiosAi.youtube.refreshCommentQueue', async () => {
             try {
                 vscode.window.showInformationMessage('📺 YouTube 댓글 가져오는 중...');
                 const r = await _youtubeCommentReplyDraftBatch({});
@@ -8896,7 +9105,7 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`YouTube 큐 갱신 실패: ${e?.message || e}`);
             }
         }),
-        vscode.commands.registerCommand('connectAiLab.developer.scaffoldProject', async () => {
+        vscode.commands.registerCommand('axiosAi.developer.scaffoldProject', async () => {
             try {
                 const name = await vscode.window.showInputBox({
                     placeHolder: '프로젝트 이름 (영문/숫자/하이픈)',
@@ -8935,28 +9144,28 @@ export function activate(context: vscode.ExtensionContext) {
 
     // New Chat
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.newChat', () => {
+        vscode.commands.registerCommand('axios-ai.newChat', () => {
             provider.resetChat();
         })
     );
 
     // Export Chat as Markdown
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.exportChat', async () => {
+        vscode.commands.registerCommand('axios-ai.exportChat', async () => {
             await provider.exportChat();
         })
     );
 
     // Focus Chat Input (Cmd+L)
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.focusChat', () => {
+        vscode.commands.registerCommand('axios-ai.focusChat', () => {
             provider.focusInput();
         })
     );
 
     // Explain Selected Code (right-click menu)
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.explainSelection', () => {
+        vscode.commands.registerCommand('axios-ai.explainSelection', () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) { return; }
             const selection = editor.document.getText(editor.selection);
@@ -8968,47 +9177,47 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Show Brain Network Topology
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.showBrainNetwork', () => {
+        vscode.commands.registerCommand('axios-ai.showBrainNetwork', () => {
             showBrainNetwork(context);
         })
     );
 
     // 🏢 Open virtual office (스몰빌식 가상 사무실)
     context.subscriptions.push(
-        vscode.commands.registerCommand('connect-ai-lab.openOffice', () => {
+        vscode.commands.registerCommand('axios-ai.openOffice', () => {
             OfficePanel.createOrShow(context, provider);
         }),
         /* v2.89.96 — 사이드바 ⋯ 메뉴가 어떤 이유로 클릭 안 받을 때를 대비한
-           명령 팔레트 fallback. Cmd/Ctrl+Shift+P → "Connect AI: 설정 열기" */
-        vscode.commands.registerCommand('connect-ai-lab.openSettings', async () => {
+           명령 팔레트 fallback. Cmd/Ctrl+Shift+P → "Axios AI: 설정 열기" */
+        vscode.commands.registerCommand('axios-ai.openSettings', async () => {
             try { await (provider as any)._handleSettingsMenu?.(); }
             catch (e: any) {
                 vscode.window.showErrorMessage(`설정 메뉴 열기 실패: ${e?.message || e}`);
             }
         }),
         /* 회사 폴더 위치 변경 — 두뇌 안 nested vs 완전 분리 선택 */
-        vscode.commands.registerCommand('connect-ai-lab.changeCompanyDir', async () => {
+        vscode.commands.registerCommand('axios-ai.changeCompanyDir', async () => {
             await runChangeCompanyDir();
         }),
         /* 회사 GitHub 별도 연결 — 두뇌와 분리된 repo로 백업 */
-        vscode.commands.registerCommand('connect-ai-lab.connectCompanyRepo', async () => {
+        vscode.commands.registerCommand('axios-ai.connectCompanyRepo', async () => {
             await runConnectCompanyRepo();
         }),
         /* Google Calendar 자동 일정 등록 (OAuth) */
-        vscode.commands.registerCommand('connect-ai-lab.connectGoogleCalendarWrite', async () => {
+        vscode.commands.registerCommand('axios-ai.connectGoogleCalendarWrite', async () => {
             await runConnectGoogleCalendarWrite();
         })
     );
 }
 
 async function runConnectCompanyRepo() {
-    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+    const cfg = vscode.workspace.getConfiguration('axiosAi');
     const companyDir = getCompanyDir();
     const brainDir = _getBrainDir();
     const isNested = path.normalize(companyDir).startsWith(path.normalize(brainDir) + path.sep);
     if (isNested) {
         const ok = await vscode.window.showInformationMessage(
-            `회사 폴더가 두뇌 안 nested 위치에 있어요 — 두뇌 GitHub 저장소(\`secondBrainRepo\`)로 이미 같이 백업됩니다.\n\n별도 저장소를 쓰려면 먼저 명령 팔레트에서 "Connect AI: 회사 폴더 변경"으로 회사를 두뇌 외부로 옮기세요.`,
+            `회사 폴더가 두뇌 안 nested 위치에 있어요 — 두뇌 GitHub 저장소(\`secondBrainRepo\`)로 이미 같이 백업됩니다.\n\n별도 저장소를 쓰려면 먼저 명령 팔레트에서 "Axios AI: 회사 폴더 변경"으로 회사를 두뇌 외부로 옮기세요.`,
             { modal: false },
             '회사 폴더 변경하기',
             '괜찮아요'
@@ -9050,7 +9259,7 @@ async function runConnectCompanyRepo() {
      B) Pick another folder (detached — separate git repo, team-shared, ...)
      C) Cancel */
 async function runChangeCompanyDir() {
-    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+    const cfg = vscode.workspace.getConfiguration('axiosAi');
     const cur = (cfg.get<string>('companyDir', '') || '').trim();
     const oldDir = getCompanyDir();
     const brainDir = _getBrainDir();
@@ -9399,7 +9608,7 @@ function _RENDER_GRAPH_HTML(graphJson: string, isEmpty: boolean, forceGraphSrc: 
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} data:; style-src ${cspSource} 'unsafe-inline'; script-src ${cspSource} 'unsafe-inline'; font-src ${cspSource};">
-  <title>Connect AI — 지식 네트워크</title>
+  <title>Axios AI — 지식 네트워크</title>
   <style>
     body { margin: 0; padding: 0; background: #131419; overflow: hidden; width: 100vw; height: 100vh; font-family: 'SF Pro Display', -apple-system, sans-serif; color: #d8d9de; }
     /* Subtle vignette behind the canvas — z-index -1 so it never obscures nodes */
@@ -10301,7 +10510,7 @@ function _RENDER_GRAPH_HTML(graphJson: string, isEmpty: boolean, forceGraphSrc: 
 // _SIDEBAR_BRAND_CSS moved to assets/webview/sidebar-brand.css
 // _BRAND_CSS moved to assets/webview/brand.css
 class ApprovalsPanelProvider implements vscode.WebviewViewProvider {
-    public static readonly viewId = 'connectAiLab.approvals';
+    public static readonly viewId = 'axiosAi.approvals';
     private _view?: vscode.WebviewView;
     private _refreshTicker: NodeJS.Timeout | null = null;
 
@@ -10312,7 +10521,7 @@ class ApprovalsPanelProvider implements vscode.WebviewViewProvider {
         view.webview.onDidReceiveMessage(async (msg) => {
             if (msg?.type === 'refresh') this._post();
             else if (msg?.type === 'openDash') {
-                vscode.commands.executeCommand('connectAiLab.dashboard.open');
+                vscode.commands.executeCommand('axiosAi.dashboard.open');
             } else if (msg?.type === 'approve' && msg.id) {
                 const r = await resolveApproval(msg.id, 'approved');
                 this._post(r.message);
@@ -10422,7 +10631,7 @@ vscode.postMessage({ type: 'refresh' });
 let _approvalsPanelProvider: ApprovalsPanelProvider | null = null;
 
 class YouTubeDashboardProvider implements vscode.WebviewViewProvider {
-    public static readonly viewId = 'connectAiLab.youtube';
+    public static readonly viewId = 'axiosAi.youtube';
     private _view?: vscode.WebviewView;
 
     resolveWebviewView(view: vscode.WebviewView): void {
@@ -10434,7 +10643,7 @@ class YouTubeDashboardProvider implements vscode.WebviewViewProvider {
                 if (msg?.type === 'refresh') {
                     await this._sendChannelData();
                 } else if (msg?.type === 'openDash') {
-                    vscode.commands.executeCommand('connectAiLab.dashboard.open');
+                    vscode.commands.executeCommand('axiosAi.dashboard.open');
                 } else if (msg?.type === 'addCompetitor' && msg.handleOrId) {
                     await this._addCompetitor(msg.handleOrId);
                 } else if (msg?.type === 'removeCompetitor' && msg.id) {
@@ -10444,7 +10653,7 @@ class YouTubeDashboardProvider implements vscode.WebviewViewProvider {
                     this._view?.webview.postMessage({ type: 'toast', text: r.reason ? `⚠️ ${r.reason}` : `📺 ${r.drafted}건 큐 생성, ${r.skipped}건 스킵`, err: !!r.reason });
                     await this._sendChannelData();
                 } else if (msg?.type === 'connectOAuth') {
-                    vscode.commands.executeCommand('connectAiLab.youtube.connectOAuth');
+                    vscode.commands.executeCommand('axiosAi.youtube.connectOAuth');
                 }
             } catch (e: any) {
                 this._view?.webview.postMessage({ type: 'toast', text: `⚠️ ${e?.message || e}`, err: true });
@@ -10665,7 +10874,7 @@ let _ytDashboardProvider: YouTubeDashboardProvider | null = null;
    instead of stacking. */
 class CompanyDashboardPanel {
     public static current: CompanyDashboardPanel | null = null;
-    public static readonly viewType = 'connectAiLab.dashboard';
+    public static readonly viewType = 'axiosAi.dashboard';
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _refreshTimer: NodeJS.Timeout | null = null;
@@ -10801,7 +11010,7 @@ class CompanyDashboardPanel {
                     this._postToast(r.reason ? `⚠️ ${r.reason}` : `📺 ${r.drafted}건 큐 생성, ${r.skipped}건 스킵`, !!r.reason);
                     await this._sendState();
                 } else if (msg?.type === 'connectOAuth') {
-                    vscode.commands.executeCommand('connectAiLab.youtube.connectOAuth');
+                    vscode.commands.executeCommand('axiosAi.youtube.connectOAuth');
                 } else if (msg?.type === 'addCompetitor' && msg.handleOrId) {
                     if (_ytDashboardProvider) {
                         /* Reuse the storage helpers on the sidebar provider — same source of truth. */
@@ -11299,7 +11508,7 @@ class CompanyDashboardPanel {
                 }),
                 conversationsToday,
                 recentLog: recentLog.slice(-1500),
-                briefingTime: vscode.workspace.getConfiguration('connectAiLab').get<string>('dailyBriefingTime') || '09:00',
+                briefingTime: vscode.workspace.getConfiguration('axiosAi').get<string>('dailyBriefingTime') || '09:00',
             });
         } catch { /* panel disposed */ }
     }
@@ -11387,7 +11596,7 @@ class CompanyDashboardPanel {
         </svg>
       </div>
       <div>
-        <div class="hero-eyebrow">CONNECT AI · 직원 에이전트 보기</div>
+        <div class="hero-eyebrow">AXIOS AI · 직원 에이전트 보기</div>
         <div class="hero-title" id="companyName">불러오는 중…</div>
         <div class="hero-meta">
           <span class="meta-pill" id="todayLabel"></span>
@@ -11544,7 +11753,7 @@ function _loadWebviewAsset(name: string): string {
         const p = path.join(_dashboardExtensionUri.fsPath, 'assets', 'webview', name);
         return fs.readFileSync(p, 'utf-8');
     } catch (e: any) {
-        console.warn(`[Connect AI] webview asset 로드 실패 ${name}:`, e?.message || e);
+        console.warn(`[Axios AI] webview asset 로드 실패 ${name}:`, e?.message || e);
         return '';
     }
 }
@@ -11611,7 +11820,7 @@ const API_SERVICES: ApiServiceDef[] = [
         summary: '시청 지속률 · 트래픽 소스 · 시청자 인구통계. Client ID/Secret 채운 뒤 "OAuth 연결" 버튼 (또는 에이전트가 자동으로 발동).',
         helpUrl: 'https://console.cloud.google.com/',
         agentId: 'youtube',
-        wizardCommand: 'connectAiLab.youtube.connectOAuth',
+        wizardCommand: 'axiosAi.youtube.connectOAuth',
         fields: [
             { key: 'YOUTUBE_OAUTH_CLIENT_ID', label: 'Client ID', type: 'password' },
             { key: 'YOUTUBE_OAUTH_CLIENT_SECRET', label: 'Client Secret', type: 'password', help: 'Authorized redirect URI: http://127.0.0.1:5814/yt-oauth-callback' },
@@ -11623,9 +11832,9 @@ const API_SERVICES: ApiServiceDef[] = [
         icon: '📅',
         summary: '비서가 사용자 일정을 읽고 자동으로 task 마감일과 동기화합니다.',
         agentId: 'secretary',
-        wizardCommand: 'connect-ai-lab.connectGoogleCalendarWrite',
+        wizardCommand: 'axios-ai.connectGoogleCalendarWrite',
         fields: [
-            { key: 'GOOGLE_CALENDAR_ID', label: 'Calendar ID', type: 'text', placeholder: 'primary 또는 yourcal@group.calendar.google.com', help: '명령 팔레트 → "Connect AI: Google Calendar 자동 일정 연결" 추천' },
+            { key: 'GOOGLE_CALENDAR_ID', label: 'Calendar ID', type: 'text', placeholder: 'primary 또는 yourcal@group.calendar.google.com', help: '명령 팔레트 → "Axios AI: Google Calendar 자동 일정 연결" 추천' },
         ],
     },
     {
@@ -11635,7 +11844,6 @@ const API_SERVICES: ApiServiceDef[] = [
         summary: 'Developer 에이전트가 이슈 읽고 코드 푸시. repo + workflow 권한 필요.',
         helpUrl: 'https://github.com/settings/tokens',
         agentId: 'developer',
-        comingSoon: true,
         fields: [
             { key: 'GITHUB_TOKEN', label: 'Personal Access Token', type: 'password' },
             { key: 'GITHUB_DEFAULT_REPO', label: '기본 저장소', type: 'text', placeholder: 'owner/repo' },
@@ -11648,10 +11856,21 @@ const API_SERVICES: ApiServiceDef[] = [
         summary: '인스타 비즈니스 계정 게시 + DM/댓글 분석.',
         helpUrl: 'https://developers.facebook.com/',
         agentId: 'instagram',
-        comingSoon: true,
         fields: [
             { key: 'META_ACCESS_TOKEN', label: 'Access Token', type: 'password' },
             { key: 'INSTAGRAM_BUSINESS_ID', label: 'Business Account ID', type: 'text' },
+        ],
+    },
+    {
+        id: 'threads',
+        name: 'Meta Threads',
+        icon: '🧵',
+        summary: '스레드 계정에 자동으로 게시글을 올리고, 계정 분석 및 댓글 관리를 수행합니다.',
+        helpUrl: 'https://developers.facebook.com/docs/threads/',
+        agentId: 'instagram',
+        fields: [
+            { key: 'THREADS_ACCESS_TOKEN', label: 'Access Token', type: 'password', help: 'Meta for Developers에서 발급한 Threads용 Access Token' },
+            { key: 'THREADS_USER_ID', label: 'Threads User ID', type: 'text', help: 'Threads API 호출용 User ID' },
         ],
     },
     {
@@ -11704,6 +11923,34 @@ function readAllApiConnections(): Record<string, Record<string, string>> {
     for (const svc of API_SERVICES) {
         out[svc.id] = {};
         try {
+            /* v2.89.200 — Threads canonical threads_account.json */
+            if (svc.id === 'threads') {
+                try {
+                    const jsonPath = path.join(getCompanyDir(), '_agents', 'instagram', 'tools', 'threads_account.json');
+                    if (fs.existsSync(jsonPath)) {
+                        const cfg = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '{}');
+                        for (const f of svc.fields) {
+                            const v = String(cfg[f.key] || '').trim();
+                            out[svc.id][f.key] = looksLikeJunk(f.key, v) ? '' : v;
+                        }
+                        if (out[svc.id]['THREADS_ACCESS_TOKEN']) continue;
+                    }
+                } catch { /* fall through */ }
+            }
+            /* v2.89.200 — Instagram canonical instagram_account.json */
+            if (svc.id === 'instagram') {
+                try {
+                    const jsonPath = path.join(getCompanyDir(), '_agents', 'instagram', 'tools', 'instagram_account.json');
+                    if (fs.existsSync(jsonPath)) {
+                        const cfg = JSON.parse(fs.readFileSync(jsonPath, 'utf-8') || '{}');
+                        for (const f of svc.fields) {
+                            const v = String(cfg[f.key] || '').trim();
+                            out[svc.id][f.key] = looksLikeJunk(f.key, v) ? '' : v;
+                        }
+                        if (out[svc.id]['META_ACCESS_TOKEN']) continue;
+                    }
+                } catch { /* fall through */ }
+            }
             /* 텔레그램은 캐노니컬 JSON을 우선 읽음 — 폴링이 읽는 단일 진실의 출처. */
             if (svc.id === 'telegram') {
                 try {
@@ -11813,6 +12060,64 @@ async function saveApiConnection(serviceId: string, values: Record<string, strin
            2) 캐노니컬 위치(_agents/secretary/tools/telegram_setup.json)에도 동시 저장
               — 사이드바·텔레그램 폴링이 읽는 단일 진실의 출처
            3) 사용자가 token 잘못 넣으면 명확한 에러 반환 */
+        /* v2.89.200 — Threads canonical JSON sync */
+        if (serviceId === 'threads') {
+            const thToolDir = path.join(getCompanyDir(), '_agents', 'instagram', 'tools');
+            const thJsonPath = path.join(thToolDir, 'threads_account.json');
+            try {
+                fs.mkdirSync(thToolDir, { recursive: true });
+                let existing: Record<string, any> = {};
+                if (fs.existsSync(thJsonPath)) {
+                    try { existing = JSON.parse(fs.readFileSync(thJsonPath, 'utf-8') || '{}'); } catch {}
+                }
+                const token = (values['THREADS_ACCESS_TOKEN'] || '').trim();
+                const userId = (values['THREADS_USER_ID'] || '').trim();
+                existing['THREADS_ACCESS_TOKEN'] = token;
+                existing['THREADS_USER_ID'] = userId;
+                
+                if (!('_schema' in existing)) {
+                    existing['_schema'] = {
+                        THREADS_ACCESS_TOKEN: { label: '🔑 Threads Access Token', hint: 'Meta for Developers에서 발급한 Threads용 Access Token' },
+                        THREADS_USER_ID: { label: '🆔 Threads User ID', hint: 'Threads API 호출용 User ID' }
+                    };
+                }
+                fs.writeFileSync(thJsonPath, JSON.stringify(existing, null, 2));
+                if (token && userId) {
+                    extraNote = `🧵 threads_account.json 동기화 완료!`;
+                }
+            } catch (e: any) {
+                console.warn('[saveApiConnection] threads_account.json sync failed:', e?.message || e);
+            }
+        }
+        /* v2.89.200 — Instagram canonical JSON sync */
+        if (serviceId === 'instagram') {
+            const igToolDir = path.join(getCompanyDir(), '_agents', 'instagram', 'tools');
+            const igJsonPath = path.join(igToolDir, 'instagram_account.json');
+            try {
+                fs.mkdirSync(igToolDir, { recursive: true });
+                let existing: Record<string, any> = {};
+                if (fs.existsSync(igJsonPath)) {
+                    try { existing = JSON.parse(fs.readFileSync(igJsonPath, 'utf-8') || '{}'); } catch {}
+                }
+                const token = (values['META_ACCESS_TOKEN'] || '').trim();
+                const bizId = (values['INSTAGRAM_BUSINESS_ID'] || '').trim();
+                existing['META_ACCESS_TOKEN'] = token;
+                existing['INSTAGRAM_BUSINESS_ID'] = bizId;
+                
+                if (!('_schema' in existing)) {
+                    existing['_schema'] = {
+                        META_ACCESS_TOKEN: { label: '🔑 Meta Access Token', hint: 'Meta for Developers에서 발급한 Instagram Graph API Access Token' },
+                        INSTAGRAM_BUSINESS_ID: { label: '🆔 Instagram Business Account ID', hint: 'Instagram Business Account ID' }
+                    };
+                }
+                fs.writeFileSync(igJsonPath, JSON.stringify(existing, null, 2));
+                if (token && bizId) {
+                    extraNote = `📷 instagram_account.json 동기화 완료!`;
+                }
+            } catch (e: any) {
+                console.warn('[saveApiConnection] instagram_account.json sync failed:', e?.message || e);
+            }
+        }
         if (serviceId === 'telegram') {
             let token = (values['TELEGRAM_BOT_TOKEN'] || '').trim();
             let chatId = (values['TELEGRAM_CHAT_ID'] || '').trim();
@@ -12012,7 +12317,7 @@ async function saveApiConnection(serviceId: string, values: Record<string, strin
 
 class ApiConnectionsPanel {
     public static current: ApiConnectionsPanel | null = null;
-    public static readonly viewType = 'connectAiLab.apiConnections';
+    public static readonly viewType = 'axiosAi.apiConnections';
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
 
@@ -12090,9 +12395,9 @@ class ApiConnectionsPanel {
   <div class="hero-inner">
     <div class="hero-mark">🔌</div>
     <div>
-      <div class="eyebrow">CONNECT AI · 외부 연결</div>
+      <div class="eyebrow">AXIOS AI · 외부 연결</div>
       <h1>API 키 한 곳에서 관리</h1>
-      <div class="hero-sub">텔레그램 · YouTube · Google Calendar · GitHub · Instagram — 모든 자격증명을 한 패널에서 입력하고 저장합니다. 같은 값이 <code>_agents/&lt;id&gt;/config.md</code>로 저장돼요.</div>
+      <div class="hero-sub">텔레그램 · YouTube · Google Calendar · GitHub · Instagram · Threads — 모든 자격증명을 한 패널에서 입력하고 저장합니다. 같은 값이 <code>_agents/&lt;id&gt;/config.md</code>로 저장돼요.</div>
     </div>
   </div>
 </header>
@@ -12110,7 +12415,7 @@ class ApiConnectionsPanel {
    화면 가운데 burst alert. */
 class RevenueDashboardPanel {
     public static current: RevenueDashboardPanel | null = null;
-    public static readonly viewType = 'connectAiLab.revenueDashboard';
+    public static readonly viewType = 'axiosAi.revenueDashboard';
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _autoRefreshTimer: NodeJS.Timeout | null = null;
@@ -12140,7 +12445,7 @@ class RevenueDashboardPanel {
                 if (msg?.type === 'ready' || msg?.type === 'refresh') {
                     await this._fetchAndPost();
                 } else if (msg?.type === 'openSettings') {
-                    vscode.commands.executeCommand('connectAiLab.apiConnections.open');
+                    vscode.commands.executeCommand('axiosAi.apiConnections.open');
                 }
             } catch (e: any) {
                 this._postError(e?.message || String(e));
@@ -12214,7 +12519,7 @@ class RevenueDashboardPanel {
   <header class="hero">
     <div class="hero-mark">💰</div>
     <div class="hero-info">
-      <div class="eyebrow">CONNECT AI · REVENUE COMMAND CENTER</div>
+      <div class="eyebrow">AXIOS AI · REVENUE COMMAND CENTER</div>
       <h1>매출 대시보드</h1>
       <div class="hero-sub">
         PayPal 거래 실시간 분석 · 게임별 매출 분해 · <span class="live">LIVE</span>
@@ -12448,7 +12753,7 @@ async function startYouTubeOAuthFlow(): Promise<{ ok: boolean; message: string }
                 const ein = tk.data?.expires_in || 3600;
                 _writeYtOAuthTokens({ access_token: at, refresh_token: rt, expires_at: Date.now() + ein * 1000 });
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-                res.end('<!doctype html><html><body style="background:#0a0d12;color:#e6edf3;font-family:sans-serif;text-align:center;padding:60px"><h1 style="color:#00ff41">✅ Connect AI · YouTube 연결 완료</h1><p>이 창을 닫고 안티그래비티로 돌아가세요.</p></body></html>');
+                res.end('<!doctype html><html><body style="background:#0a0d12;color:#e6edf3;font-family:sans-serif;text-align:center;padding:60px"><h1 style="color:#00ff41">✅ Axios AI · YouTube 연결 완료</h1><p>이 창을 닫고 안티그래비티로 돌아가세요.</p></body></html>');
                 if (!resolved) {
                     resolved = true;
                     clearTimeout(timer);
@@ -12535,7 +12840,7 @@ export function deactivate() {
 // ============================================================
 class OfficePanel {
     public static current?: OfficePanel;
-    private static readonly viewType = 'connectAiOffice';
+    private static readonly viewType = 'axiosAiOffice';
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _ctx: vscode.ExtensionContext;
@@ -12680,14 +12985,14 @@ class OfficePanel {
                     } catch { /* ignore */ }
                     break;
                 case 'openDashboard':
-                    try { vscode.commands.executeCommand('connectAiLab.dashboard.open'); } catch { /* ignore */ }
+                    try { vscode.commands.executeCommand('axiosAi.dashboard.open'); } catch { /* ignore */ }
                     break;
                 case 'openApiConnections':
-                    try { vscode.commands.executeCommand('connectAiLab.apiConnections.open'); } catch { /* ignore */ }
+                    try { vscode.commands.executeCommand('axiosAi.apiConnections.open'); } catch { /* ignore */ }
                     break;
                 case 'toggleAutoCycle':
                     try {
-                        await vscode.workspace.getConfiguration('connectAiLab').update('autoCycleEnabled', !!msg.on, vscode.ConfigurationTarget.Global);
+                        await vscode.workspace.getConfiguration('axiosAi').update('autoCycleEnabled', !!msg.on, vscode.ConfigurationTarget.Global);
                         if (msg.on) _activeChatProvider?.startAutoCycle?.(15, 0);
                         else _activeChatProvider?.stopAutoCycle?.();
                     } catch { /* ignore */ }
@@ -12815,7 +13120,7 @@ class OfficePanel {
 
     /** 사용자가 설정에 명시적으로 추가 자산 경로를 지정한 경우만 사용. 그 외엔 vsix 번들 자산 사용. */
     private static _resolveUserAssetsPath(): string {
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const explicit = (cfg.get<string>('assetsPath') || '').trim();
         if (explicit && fs.existsSync(explicit)) return explicit;
         // Dev mode: extension repo includes the LimeZu pack at
@@ -12971,7 +13276,7 @@ class OfficePanel {
         if (customMapUri) {
             world.desks = { ...world.desks, ...CUSTOM_MAP_DESKS };
         }
-        const workdayOn = vscode.workspace.getConfiguration('connectAiLab').get<boolean>('autoCycleEnabled', true);
+        const workdayOn = vscode.workspace.getConfiguration('axiosAi').get<boolean>('autoCycleEnabled', true);
         this._panel.webview.postMessage({
             type: 'officeInit',
             agents,
@@ -14675,7 +14980,7 @@ const AGENT_CONFIG_FIELDS = {
   ],
   developer: [
     { key:'github_token', label:'GitHub Personal Access Token', type:'password', help:'github.com/settings/tokens — repo + workflow 권한 필요' },
-    { key:'default_repo', label:'기본 저장소 (owner/repo)', type:'text', placeholder:'wonseokjung/connect-ai' },
+    { key:'default_repo', label:'기본 저장소 (owner/repo)', type:'text', placeholder:'wonseokjung/axios-ai' },
     { key:'preferred_stack', label:'선호 기술 스택', type:'text', placeholder:'TypeScript, Next.js, PostgreSQL' },
     { key:'deploy_target', label:'배포 환경', type:'text', placeholder:'Vercel / 자체 서버' }
   ],
@@ -14913,7 +15218,7 @@ cmdSend.addEventListener('click', send);
 cmdInput.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); }});
 folderBtn.addEventListener('click', () => vscode.postMessage({ type: 'openCompanyFolder' }));
 /* Single master switch: walking + chatter + 24h work cycle move together.
-   Initial state mirrors the workspace setting connectAiLab.autoCycleEnabled,
+   Initial state mirrors the workspace setting axiosAi.autoCycleEnabled,
    pushed by the host on officeInit. */
 const workdayBtn = document.getElementById('workdayBtn');
 let _chatterTimer = null;
@@ -15174,7 +15479,7 @@ window.addEventListener('message', e => {
       document.body.classList.add('floorplan');
       try {
         const dbg = (m.debug || {});
-        console.log('[Connect AI] world init — buildings:', dbg.buildingsLoaded, '/ decor:', dbg.decorationsLoaded, '/ custom map:', dbg.customMap||'none');
+        console.log('[Axios AI] world init — buildings:', dbg.buildingsLoaded, '/ decor:', dbg.decorationsLoaded, '/ custom map:', dbg.customMap||'none');
         const customNote = (dbg.customMap === 'OK') ? ' · 🎨 커스텀 맵 사용' : '';
         logActivity('🛠','ceo','캠퍼스 v2.28: '+(dbg.buildingsLoaded||0)+'동 + '+(dbg.decorationsLoaded||0)+' 장식'+customNote);
       } catch {}
@@ -15880,7 +16185,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
         try {
             if (!isCompanyConfigured()) return;
             // 사용자가 24시간 업무를 OFF 했으면 자동 브리핑도 같이 OFF.
-            const enabled = vscode.workspace.getConfiguration('connectAiLab').get<boolean>('autoCycleEnabled', true);
+            const enabled = vscode.workspace.getConfiguration('axiosAi').get<boolean>('autoCycleEnabled', true);
             if (!enabled) return;
             const today = new Date().toISOString().slice(0, 10);
             const last = ctx.globalState.get<string>('lastMorningBriefDate', '');
@@ -15999,7 +16304,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
         if (idleMs > 0 && Date.now() - this._lastUserActivityTs < idleMs) return;
         if (!isCompanyConfigured()) return;
         // Manual kill switch from agent panel — settings key, default ON.
-        const enabled = vscode.workspace.getConfiguration('connectAiLab').get<boolean>('autoCycleEnabled', true);
+        const enabled = vscode.workspace.getConfiguration('axiosAi').get<boolean>('autoCycleEnabled', true);
         if (!enabled) return;
         const model = this.getDefaultModel();
         if (!model) return;
@@ -16307,7 +16612,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
 
         const assetsRoot = vscode.Uri.file(path.join(this._ctx.extensionPath, 'assets'));
         const panel = vscode.window.createWebviewPanel(
-            'connectAiThinking',
+            'axiosAiThinking',
             '🎬 Thinking Mode — AI 사고 시각화',
             { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
             { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [assetsRoot] }
@@ -16402,7 +16707,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
 
     private _sendStatusUpdate() {
         if (!this._view) return;
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const folderPath = _isBrainDirExplicitlySet() ? _getBrainDir() : '';
         let fileCount = 0;
         if (folderPath && fs.existsSync(folderPath)) {
@@ -16446,7 +16751,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
         // Beginner-friendly: clicking ☁️ ALWAYS opens the URL input box, with the
         // current URL pre-filled. After save, sync runs automatically.
         // No nested menu — direct typing is the most intuitive flow.
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const existing = cfg.get<string>('secondBrainRepo', '') || '';
 
         const inputUrl = await vscode.window.showInputBox({
@@ -16583,9 +16888,9 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
             vscode.window.showWarningMessage('내보낼 대화가 없습니다.');
             return;
         }
-        let md = `# Connect AI — 대화 기록\n\n_${new Date().toLocaleString('ko-KR')}_\n\n---\n\n`;
+        let md = `# Axios AI — 대화 기록\n\n_${new Date().toLocaleString('ko-KR')}_\n\n---\n\n`;
         for (const m of this._displayMessages) {
-            const label = m.role === 'user' ? '**👤 You**' : '**✦ Connect AI**';
+            const label = m.role === 'user' ? '**👤 You**' : '**✦ Axios AI**';
             md += `### ${label}\n\n${m.text}\n\n---\n\n`;
         }
         const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -16932,7 +17237,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                         const verifiedCount = countAgentVerifiedClaims(msg.agent);
                         const tg = readTelegramConfig();
                         const telegramConnected = !!(tg.token && tg.chatId);
-                        const autoOn = vscode.workspace.getConfiguration('connectAiLab').get<boolean>('autoCycleEnabled', true);
+                        const autoOn = vscode.workspace.getConfiguration('axiosAi').get<boolean>('autoCycleEnabled', true);
                         const tools = listAgentTools(msg.agent).map(t => ({
                             name: t.name,
                             displayName: t.displayName,
@@ -17193,12 +17498,12 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                 case 'runCalendarWriteWizard': {
                     /* Triggered from agent panel ⚙️ on google_calendar_write —
                        runs the host-side OAuth wizard. */
-                    vscode.commands.executeCommand('connect-ai-lab.connectGoogleCalendarWrite').then(undefined, () => { /* user cancel */ });
+                    vscode.commands.executeCommand('axios-ai.connectGoogleCalendarWrite').then(undefined, () => { /* user cancel */ });
                     break;
                 }
                 case 'toggleAutoCycle': {
                     try {
-                        await vscode.workspace.getConfiguration('connectAiLab').update('autoCycleEnabled', !!msg.on, vscode.ConfigurationTarget.Global);
+                        await vscode.workspace.getConfiguration('axiosAi').update('autoCycleEnabled', !!msg.on, vscode.ConfigurationTarget.Global);
                         if (msg.on) {
                             this.startAutoCycle(15, 0);
                         } else {
@@ -17266,7 +17571,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                     break;
                 }
                 case 'onboardingState': {
-                    const cfg = vscode.workspace.getConfiguration('connectAiLab');
+                    const cfg = vscode.workspace.getConfiguration('axiosAi');
                     const url = (cfg.get<string>('ollamaUrl') || '').trim();
                     const model = (cfg.get<string>('defaultModel') || '').trim();
                     const brain = (cfg.get<string>('localBrainPath') || '').trim();
@@ -17304,7 +17609,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                     if (detected && detail) {
                         const targetUrl = detected === 'LM Studio' ? 'http://127.0.0.1:1234' : 'http://127.0.0.1:11434';
                         try {
-                            const cfg = vscode.workspace.getConfiguration('connectAiLab');
+                            const cfg = vscode.workspace.getConfiguration('axiosAi');
                             await cfg.update('ollamaUrl', targetUrl, vscode.ConfigurationTarget.Global);
                             await cfg.update('defaultModel', detail, vscode.ConfigurationTarget.Global);
                         } catch {}
@@ -17320,7 +17625,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                         openLabel: '내 두뇌 폴더로 사용', title: '🧠 두뇌 폴더 선택 (지식·대화·회사 모두 여기에 저장됨)'
                     });
                     if (picked && picked[0]) {
-                        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+                        const cfg = vscode.workspace.getConfiguration('axiosAi');
                         try { await cfg.update('localBrainPath', picked[0].fsPath, vscode.ConfigurationTarget.Global); } catch {}
                         if (this._view) this._view.webview.postMessage({ type: 'brainFolderPicked', path: picked[0].fsPath });
                     }
@@ -17333,7 +17638,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                         break;
                     }
                     try {
-                        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+                        const cfg = vscode.workspace.getConfiguration('axiosAi');
                         await cfg.update('secondBrainRepo', url, vscode.ConfigurationTarget.Global);
                     } catch {}
                     if (this._view) this._view.webview.postMessage({ type: 'githubRepoResult', ok: true, url });
@@ -17413,7 +17718,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                     const choice = msg.choice as string;
                     try {
                         if (choice === 'default') {
-                            // ~/.connect-ai-brain (brain dir == company dir)
+                            // ~/.axios-ai-brain (brain dir == company dir)
                             await setCompanyDir('');
                             ensureCompanyStructure();
                             this._sendCompanyState('두뇌 폴더에 회사 구조가 만들어졌어요.');
@@ -17442,7 +17747,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                                 }
                             });
                             if (url) {
-                                const targetParent = path.join(os.homedir(), '.connect-ai-brain-imported');
+                                const targetParent = path.join(os.homedir(), '.axios-ai-brain-imported');
                                 fs.mkdirSync(targetParent, { recursive: true });
                                 const targetName = path.basename(url, '.git');
                                 const target = path.join(targetParent, targetName);
@@ -17665,16 +17970,16 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                     await this._handleBrainMenu();
                     break;
                 case 'showBrainNetwork':
-                    vscode.commands.executeCommand('connect-ai-lab.showBrainNetwork');
+                    vscode.commands.executeCommand('axios-ai.showBrainNetwork');
                     break;
                 case 'openOffice':
-                    vscode.commands.executeCommand('connect-ai-lab.openOffice');
+                    vscode.commands.executeCommand('axios-ai.openOffice');
                     break;
                 case 'toggleOffice':
                     if (OfficePanel.current) {
                         OfficePanel.current.dispose();
                     } else {
-                        vscode.commands.executeCommand('connect-ai-lab.openOffice');
+                        vscode.commands.executeCommand('axios-ai.openOffice');
                     }
                     break;
                 case 'closeOffice':
@@ -17734,7 +18039,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                    메모리 부족, 또는 prior request의 stream pipe가 꼬여 axios 내부에서
                    RangeError. */
                 const stack = msgErr?.stack ? String(msgErr.stack).split('\n').slice(0, 4).join('\n') : '';
-                console.error('[Connect AI] message handler 예외:', stack || msgErr);
+                console.error('[Axios AI] message handler 예외:', stack || msgErr);
                 try {
                     webviewView.webview.postMessage({
                         type: 'error',
@@ -17795,7 +18100,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
 
             if (!pick) return;
             const target = (pick as any).action === 'ollama' ? 'http://127.0.0.1:11434' : 'http://127.0.0.1:1234';
-            await vscode.workspace.getConfiguration('connectAiLab').update('ollamaUrl', target, vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration('axiosAi').update('ollamaUrl', target, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`AI 엔진이 [${pick.label}] 로 변경되었습니다.`);
             await this._sendModels();
         } 
@@ -17987,7 +18292,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
         const brainFiles = fs.existsSync(brainDir) ? this._findBrainFiles(brainDir) : [];
         const fileCount = brainFiles.length;
         
-        const currentRepo = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+        const currentRepo = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
         const repoLabel = currentRepo ? currentRepo.split('/').pop() : '없음';
         
         const items: any[] = [
@@ -18039,7 +18344,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                 });
                 if (folders && folders.length > 0) {
                     const selectedPath = folders[0].fsPath;
-                    await vscode.workspace.getConfiguration('connectAiLab').update('localBrainPath', selectedPath, vscode.ConfigurationTarget.Global);
+                    await vscode.workspace.getConfiguration('axiosAi').update('localBrainPath', selectedPath, vscode.ConfigurationTarget.Global);
                     this._brainEnabled = true;
                     this._ctx.globalState.update('brainEnabled', true);
                     
@@ -18050,7 +18355,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                             gitExec(['init'], selectedPath);
                             gitExecSafe(['branch', '-M', 'main'], selectedPath);
 
-                            const existingRepo = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+                            const existingRepo = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
                             const cleanRepo = existingRepo ? validateGitRemoteUrl(existingRepo) : null;
                             if (cleanRepo) {
                                 gitExecSafe(['remote', 'add', 'origin', cleanRepo], selectedPath);
@@ -18075,7 +18380,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                 break;
             }
             case 'viewGraph': {
-                vscode.commands.executeCommand('connect-ai-lab.showBrainNetwork');
+                vscode.commands.executeCommand('axios-ai.showBrainNetwork');
                 break;
             }
             case 'githubSync': {
@@ -18083,7 +18388,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                 break;
             }
             case 'changeGithub': {
-                const existing = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+                const existing = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
                 const inputUrl = await vscode.window.showInputBox({
                     prompt: '☁️ 온라인 지식 공간 — GitHub 주소 (Enter로 저장)',
                     placeHolder: '예: https://github.com/사용자명/저장소이름',
@@ -18098,15 +18403,15 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
                 });
                 if (inputUrl !== undefined && inputUrl.trim()) {
                     const cleaned = validateGitRemoteUrl(inputUrl) || inputUrl.trim();
-                    await vscode.workspace.getConfiguration('connectAiLab').update('secondBrainRepo', cleaned, vscode.ConfigurationTarget.Global);
-                    const saved = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+                    await vscode.workspace.getConfiguration('axiosAi').update('secondBrainRepo', cleaned, vscode.ConfigurationTarget.Global);
+                    const saved = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
                     vscode.window.showInformationMessage(`✅ 온라인 지식 공간 저장됨: ${saved}`);
                     this._sendStatusUpdate();
                 }
                 break;
             }
             case 'cleanup': {
-                const cfg = vscode.workspace.getConfiguration('connectAiLab');
+                const cfg = vscode.workspace.getConfiguration('axiosAi');
                 const hasGit = !!(cfg.get<string>('secondBrainRepo', '') || '');
                 const hasFolder = _isBrainDirExplicitlySet();
 
@@ -18168,7 +18473,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
             if (!ensured) { return; }
         }
 
-        let secondBrainRepo = vscode.workspace.getConfiguration('connectAiLab').get<string>('secondBrainRepo', '');
+        let secondBrainRepo = vscode.workspace.getConfiguration('axiosAi').get<string>('secondBrainRepo', '');
         
         // UX 극대화: 안 채워져 있으면 에러 내뱉지 말고 입력창 띄우기!
         if (!secondBrainRepo) {
@@ -18186,7 +18491,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
             if (!inputUrl || !inputUrl.trim()) { return; }
 
             const cleaned = validateGitRemoteUrl(inputUrl) || inputUrl.trim();
-            await vscode.workspace.getConfiguration('connectAiLab').update('secondBrainRepo', cleaned, vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration('axiosAi').update('secondBrainRepo', cleaned, vscode.ConfigurationTarget.Global);
             secondBrainRepo = cleaned;
         }
 
@@ -18472,15 +18777,15 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
 
     // --------------------------------------------------------
     // v2.89.105 — Claude Code의 CLAUDE.md 호환 프로젝트 메모리 로더.
-    // 워크스페이스 루트에 AGENT.md / CONNECT-AI.md / .connect-ai/instructions.md 가
+    // 워크스페이스 루트에 AGENT.md / CONNECT-AI.md / .axios-ai/instructions.md 가
     // 있으면 자동으로 시스템 프롬프트에 주입. 부모 디렉토리도 한 단계 거슬러
     // 올라가서 모노레포 root 메모리도 캡처. 없으면 빈 문자열.
-    // 우선순위: 워크스페이스 root → 부모 → 홈(~/.connect-ai/global.md).
+    // 우선순위: 워크스페이스 root → 부모 → 홈(~/.axios-ai/global.md).
     // 한 파일당 8KB cap, 총 24KB cap. 같은 파일 중복 주입 방지.
     private _getProjectMemory(): string {
         const candidatePaths: string[] = [];
         const tried = new Set<string>();
-        const filenames = ['AGENT.md', 'CONNECT-AI.md', 'CONNECTAI.md', 'CLAUDE.md', '.connect-ai/instructions.md'];
+        const filenames = ['AGENT.md', 'CONNECT-AI.md', 'CONNECTAI.md', 'CLAUDE.md', '.axios-ai/instructions.md'];
         const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         const editor = vscode.window.activeTextEditor;
         const roots: string[] = [];
@@ -18501,7 +18806,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
         }
         /* 홈 디렉토리 글로벌 메모리 */
         try {
-            candidatePaths.push(path.join(os.homedir(), '.connect-ai', 'global.md'));
+            candidatePaths.push(path.join(os.homedir(), '.axios-ai', 'global.md'));
         } catch { /* ignore */ }
         const blocks: string[] = [];
         let totalChars = 0;
@@ -18765,7 +19070,7 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
 
             let errMsg = '';
             if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
-                errMsg = `⚠️ ${targetName}에 연결할 수 없어요.\n\n**확인할 점:**\n• ${targetName} 앱이 켜져 있나요? (Start Server 클릭)\n• 포트가 ${isLM ? '1234' : '11434'} 맞나요? (설정 > Ollama URL)\n\n💡 **명령 팔레트 (Cmd+Shift+P) → "Connect AI: 연결 진단"** 실행하면 어디가 문제인지 자동 체크해드려요.`;
+                errMsg = `⚠️ ${targetName}에 연결할 수 없어요.\n\n**확인할 점:**\n• ${targetName} 앱이 켜져 있나요? (Start Server 클릭)\n• 포트가 ${isLM ? '1234' : '11434'} 맞나요? (설정 > Ollama URL)\n\n💡 **명령 팔레트 (Cmd+Shift+P) → "Axios AI: 연결 진단"** 실행하면 어디가 문제인지 자동 체크해드려요.`;
             } else if (error.response?.status === 400) {
                 errMsg = `⚠️ AI가 요청을 이해하지 못했어요.\n\n**해결 방법:**\n• 헤더의 모델 선택 드롭다운에서 다른 모델을 골라보세요\n${isLM ? '• LM Studio에서 모델을 먼저 로드(Load)했는지 확인하세요' : '• 터미널에서 `ollama list`로 설치된 모델을 확인하세요'}`;
             } else if (error.response?.status === 404) {
@@ -19529,7 +19834,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                         appendConversationLog({ speaker: '시스템', emoji: '📁', body: fileReport.join('\n') });
                     }
                 } catch (actErr: any) {
-                    console.error('[Connect AI] casual-chat 파일 액션 실패:', actErr?.message || actErr);
+                    console.error('[Axios AI] casual-chat 파일 액션 실패:', actErr?.message || actErr);
                 }
                 this._displayMessages.push({ text: this._stripActionTags(text), role: 'ai' });
                 appendConversationLog({ speaker: 'CEO', emoji: '👔', body: text });
@@ -19591,21 +19896,21 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                         base += `\n\n[활성 게이트] 다음 에이전트는 현재 사용 불가 — 절대 tasks 배열에 넣지 마세요: ${labels}\n`;
                     }
                 } catch (gateErr: any) {
-                    console.error('[Connect AI] 활성 게이트 적용 실패:', gateErr?.message || gateErr);
+                    console.error('[Axios AI] 활성 게이트 적용 실패:', gateErr?.message || gateErr);
                 }
                 ceoStage = 'readAgentSharedContext';
                 let shared = '';
                 try { shared = readAgentSharedContext('ceo'); }
                 catch (sc: any) {
                     /* 두뇌 RAG 등이 폭주해도 CEO 호출은 계속 — 컨텍스트 일부 누락한 채 진행. */
-                    console.error('[Connect AI] readAgentSharedContext 실패, 빈 컨텍스트로 계속:', sc?.message || sc);
+                    console.error('[Axios AI] readAgentSharedContext 실패, 빈 컨텍스트로 계속:', sc?.message || sc);
                     shared = '';
                 }
                 ceoStage = 'readRecentConversations';
                 let recent = '';
                 try { recent = readRecentConversations(2000); }
                 catch (rc: any) {
-                    console.error('[Connect AI] readRecentConversations 실패:', rc?.message || rc);
+                    console.error('[Axios AI] readRecentConversations 실패:', rc?.message || rc);
                     recent = '';
                 }
                 ceoSystemPrompt = `${base}\n${shared}${recent}`;
@@ -20648,7 +20953,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
             // 8) 자율 git 백업 — 두뇌 + (옵션)회사 별도 백업 둘 다 시도.
             //    회사가 두뇌 안 nested면 두뇌 sync 한 번으로 끝, detached면
             //    별도 push가 같이 돌아감. 락이 분리돼있어 병렬로 실행 가능.
-            const brainDir = path.join(os.homedir(), '.connect-ai-brain');
+            const brainDir = path.join(os.homedir(), '.axios-ai-brain');
             const sessionMsg = `chore(corporate): session ${path.basename(sessionDir)}`;
             _safeGitAutoSync(brainDir, sessionMsg, this).catch(() => { /* silent */ });
             _safeGitAutoSyncCompany(sessionMsg, this).catch(() => { /* silent */ });
@@ -20796,9 +21101,9 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
            timeout이 첫 토큰 도착 전에 끊김 (사용자 "60초 벽" 컴플레인). 이제:
            - FIRST_TOKEN_TIMEOUT (디폴트 240초): 모델 첫 토큰까지 기다리는 시간
            - IDLE_TIMEOUT (디폴트 60초): 첫 토큰 이후 chunk 사이 대기 시간
-           둘 다 settings.json `connectAiLab.streamFirstTokenTimeoutSec`,
-           `connectAiLab.streamIdleTimeoutSec` 로 사용자 조정 가능. */
-        const cfg = vscode.workspace.getConfiguration('connectAiLab');
+           둘 다 settings.json `axiosAi.streamFirstTokenTimeoutSec`,
+           `axiosAi.streamIdleTimeoutSec` 로 사용자 조정 가능. */
+        const cfg = vscode.workspace.getConfiguration('axiosAi');
         const FIRST_TOKEN_TIMEOUT_MS = (cfg.get<number>('streamFirstTokenTimeoutSec', 240) || 240) * 1000;
         const IDLE_TIMEOUT_MS = (cfg.get<number>('streamIdleTimeoutSec', 60) || 60) * 1000;
         await new Promise<void>((resolve, reject) => {
@@ -20821,7 +21126,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                     const sec = Math.round(limit / 1000);
                     finish(new Error(
                         `LLM ${stage} ${sec}초 초과. 저사양 머신이면 ` +
-                        `settings.json에서 connectAiLab.streamFirstTokenTimeoutSec 값을 ` +
+                        `settings.json에서 axiosAi.streamFirstTokenTimeoutSec 값을 ` +
                         `늘리거나 (예: 600), 더 작은 모델로 변경하세요 (gemma2:2b 1.6GB 등).`
                     ));
                 }
@@ -20935,7 +21240,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
             return `💼 현빈: 사장님, PayPal Client ID 또는 Secret 이 비어있어 매출을 가져올 수 없어요.
 
 📋 **해결 단계**:
-1. \`Cmd+Shift+P\` → \`Connect AI: 외부 연결\`
+1. \`Cmd+Shift+P\` → \`Axios AI: 외부 연결\`
 2. 💰 PayPal 카드 → Client ID + Secret 입력
 3. 저장 → 즉시 매출 분석 가능
 
@@ -20959,7 +21264,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
 
 📋 외부 연결 패널에서 Client ID/Secret 다시 확인 후 재시도.
 📊 평가: 대기 — 자격증명 확인 필요.
-📝 다음 단계: \`Cmd+Shift+P\` → \`Connect AI: 외부 연결\` 에서 PayPal 카드 점검.
+📝 다음 단계: \`Cmd+Shift+P\` → \`Axios AI: 외부 연결\` 에서 PayPal 카드 점검.
 `;
             }
             const insight = `💼 현빈: 사장님, 실시간 PayPal 데이터 가져왔습니다. 즉시 분석 결과 보여드려요.\n\n`;
@@ -21027,7 +21332,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
            폴더 (기존 파일 덮어쓰지만 .backup 자동 보존). */
         const escapedIntent = userPrompt.replace(/"/g, '\\"');
         const projectName = best.kit.replace(/-kit$/, '');
-        const projectDir = path.join(os.homedir(), 'connect-ai-projects', projectName);
+        const projectDir = path.join(os.homedir(), 'axios-ai-projects', projectName);
         const toolsDir = path.join(getCompanyDir(), '_agents', 'developer', 'tools').replace(/\\/g, '/');
         const projectDirShell = projectDir.replace(/\\/g, '/');
         const brainRootShell = brainDir.replace(/\\/g, '/');
@@ -21672,7 +21977,7 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
         // Show notification — silent suppresses for corporate dispatch (카드 뷰에서 별도 보고됨)
         const successCount = report.filter(r => r.startsWith('✅') || r.startsWith('✏️') || r.startsWith('🖥️') || r.startsWith('🗑️') || r.startsWith('📖') || r.startsWith('📂') || r.startsWith('🗂') || r.startsWith('🚀')).length;
         if (successCount > 0 && !opts?.silent) {
-            vscode.window.showInformationMessage(`Connect AI: ${successCount}개 에이전트 작업 완료!`);
+            vscode.window.showInformationMessage(`Axios AI: ${successCount}개 에이전트 작업 완료!`);
         }
 
         // Auto-Push Second Brain changes to Cloud

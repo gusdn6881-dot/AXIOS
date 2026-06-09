@@ -1,0 +1,86 @@
+{
+  "name": "axios-ai-desktop",
+  "version": "0.2.0",
+  "description": "Axios AI — 자비스 같은 1인 기업 AI 비서 (데스크톱 앱, 비개발자용)",
+  "main": "out/main.js",
+  "author": "Axios AI Lab",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gusdn6881-dot/AXIOS.git"
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit -p .",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/nodemailer": "^8.0.0",
+    "axios": "^1.7.0",
+    "electron-updater": "^6.8.9",
+    "msedge-tts": "^2.0.5",
+    "nodemailer": "^8.0.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  },
+  "build": {
+    "appId": "ai.axios.desktop",
+    "productName": "Axios AI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**",
+      "src/renderer/**",
+      "assets/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gusdn6881-dot",
+        "repo": "AXIOS"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": {
+        "teamId": "2PX39M2HZ9"
+      }
+    },
+    "dmg": {
+      "artifactName": "Axios-AI-${version}-mac-arm64.dmg"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Axios-AI-${version}-win-x64-Setup.exe"
+    }
+  }
+}

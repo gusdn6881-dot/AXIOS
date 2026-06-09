@@ -1,9 +1,9 @@
-{
+﻿{
   "schema_name": "ConnectAI_AgentSystemSchema",
   "version": "1.0.0",
-  "description": "A comprehensive JSON schema defining the operational state, capabilities, and configuration of the Connect AI agent.",
+  "description": "A comprehensive JSON schema defining the operational state, capabilities, and configuration of the AXIOS agent.",
   "agent_identity": {
-    "name": "Connect AI",
+    "name": "AXIOS",
     "role": "Agentic AI Coding Assistant",
     "core_principle": "100% Local · 100% Offline · 100% Free"
   },
@@ -57,7 +57,7 @@
     },
     "knowledge_base": {
       "second_brain_repo_url": "",
-      "data_location": "~/.connect-ai-brain/"
+      "data_location": "~/.axios-ai-brain/"
     }
   },
   "workspace_snapshot": {

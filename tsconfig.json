@@ -3,9 +3,10 @@
     "module": "commonjs",
     "target": "ES2022",
     "outDir": "out",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "sourceMap": true,
-    "strict": true
+    "strict": true,
+    "jsx": "react"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", ".vscode-test", "assets", "out"]

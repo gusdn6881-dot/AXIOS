@@ -3,15 +3,17 @@
 .secondbrain/**
 .git/**
 .github/**
-.env
-.env.*
+_company/**
+scratch/**
+**/.env
+**/.env.*
 ARCHITECTURE.md
 src/**
-# v2.89.84 — extension_download_site/ 와 releases/ 디렉토리 삭제됨.
-# scripts/cycle.js 는 standalone 24h cron 옵션 도구로 유지 (vsix 제외).
+# v2.89.84 ??extension_download_site/ ?� releases/ ?�렉?�리 ??��??
+# scripts/cycle.js ??standalone 24h cron ?�션 ?�구�??��? (vsix ?�외).
 scripts/**
 system_schema.json
-# 한글 파일명이 vsix에 깨진 상태로 들어가던 튜토리얼 docs 제외.
+# ?��? ?�일명이 vsix??깨진 ?�태�??�어가???�토리얼 docs ?�외.
 **/*.md
 !readme.md
 !README.md
@@ -33,7 +35,7 @@ tsconfig.json
 *.vsix
 assets/icon.svg
 preview.html
-# Heavy LimeZu source packs — kept out of vsix (huge, ~1GB). The slim
+# Heavy LimeZu source packs ??kept out of vsix (huge, ~1GB). The slim
 # office bundle at `assets/pixel/office/` ships instead, plus the 7
 # renamed character sprites at `assets/pixel/characters/*.png`.
 # Project owner has redistribution permission for the bundled subset.
@@ -43,3 +45,5 @@ preview.html
 # Nested duplicate copies (user dragged folders into multiple paths)
 assets/pixel/characters/Modern_Office_Revamped_v1/**
 assets/pixel/characters/moderninteriors-win/**
+
+desktop/**

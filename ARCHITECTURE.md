@@ -1,4 +1,4 @@
-# 🧠 Connect AI — Brain-GitHub 동기화 아키텍처 레퍼런스
+# 🧠 Axios AI — Brain-GitHub 동기화 아키텍처 레퍼런스
 
 > **이 문서는 어떤 AI든 이 코드베이스의 깃허브 동기화 구조를 즉시 파악할 수 있도록 만든 레퍼런스입니다.**
 
@@ -29,11 +29,11 @@
 
 | 설정 키 | 용도 | 기본값 |
 |---------|------|--------|
-| `connectAiLab.localBrainPath` | 로컬 지식 폴더 절대 경로 | `""` (비면 `~/.connect-ai-brain`) |
-| `connectAiLab.secondBrainRepo` | 깃허브 저장소 URL | `""` |
-| `connectAiLab.ollamaUrl` | AI 서버 주소 | `http://127.0.0.1:11434` |
-| `connectAiLab.defaultModel` | AI 모델 이름 | `gemma4:e2b` |
-| `connectAiLab.requestTimeout` | AI 응답 대기 시간(초) | `300` |
+| `axiosAi.localBrainPath` | 로컬 지식 폴더 절대 경로 | `""` (비면 `~/.axios-ai-brain`) |
+| `axiosAi.secondBrainRepo` | 깃허브 저장소 URL | `""` |
+| `axiosAi.ollamaUrl` | AI 서버 주소 | `http://127.0.0.1:11434` |
+| `axiosAi.defaultModel` | AI 모델 이름 | `gemma4:e2b` |
+| `axiosAi.requestTimeout` | AI 응답 대기 시간(초) | `300` |
 
 **⚠️ 설정은 `vscode.ConfigurationTarget.Global`로 저장됨** (워크스페이스가 아닌 전역)
 
@@ -45,7 +45,7 @@
 
 ```typescript
 getConfig()                  // 모든 설정값을 한 번에 읽음
-_getBrainDir()               // 로컬 지식 폴더 경로 반환 (미설정 시 ~/.connect-ai-brain)
+_getBrainDir()               // 로컬 지식 폴더 경로 반환 (미설정 시 ~/.axios-ai-brain)
 _isBrainDirExplicitlySet()   // 사용자가 명시적으로 폴더를 지정했는지 boolean
 _ensureBrainDir()            // 폴더 미설정 시 OS 폴더선택 다이얼로그 강제 팝업
 ```
@@ -158,10 +158,10 @@ _ensureBrainDir()            // 폴더 미설정 시 OS 폴더선택 다이얼�
 
 ```bash
 # 1. 폴더가 명시적으로 설정되어 있는지?
-# VS Code Settings → connectAiLab.localBrainPath 값 확인
+# VS Code Settings → axiosAi.localBrainPath 값 확인
 
 # 2. 깃허브 URL이 저장되어 있는지?
-# VS Code Settings → connectAiLab.secondBrainRepo 값 확인
+# VS Code Settings → axiosAi.secondBrainRepo 값 확인
 
 # 3. 지식 폴더에 git이 초기화되어 있는지?
 ls -la {brainDir}/.git
@@ -187,10 +187,10 @@ npm run compile
 
 # VSIX 패키징
 npx vsce package --no-dependencies
-# → connect-ai-lab-{version}.vsix
+# → axios-ai-{version}.vsix
 
 # GitHub 릴리즈
-gh release create v{version} connect-ai-lab-{version}.vsix -t "Release v{version}"
+gh release create v{version} axios-ai-{version}.vsix -t "Release v{version}"
 
 # 버전은 package.json의 "version" 필드
 ```
