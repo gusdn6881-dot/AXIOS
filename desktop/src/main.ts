@@ -1,4 +1,4 @@
-// Axios AI Desktop — Electron 메인 프로세스.
+// AXIOS CLI — Electron 메인 프로세스.
 // 비서(세라) 엔진 + 광장(Plaza) 연결을 IPC 로 렌더러에 노출.
 import { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, Notification, nativeImage, desktopCapturer, screen, clipboard } from 'electron';
 import { autoUpdater } from 'electron-updater';
@@ -52,9 +52,200 @@ const DEFAULTS: Config = {
 const defaultWorkspace = () => path.join(os.homedir(), 'Desktop');
 
 let cfgPath = '';
-function loadConfig(): Config {
-  try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(cfgPath, 'utf8')) }; } catch { return { ...DEFAULTS }; }
+
+const getBrainDir = () => path.join(os.homedir(), '.axios-ai-brain');
+
+function readCanonicalApiConnections(): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {
+    telegram: { TELEGRAM_BOT_TOKEN: '', TELEGRAM_CHAT_ID: '' },
+    paypal: { PAYPAL_MODE: 'sandbox', PAYPAL_CLIENT_ID: '', PAYPAL_CLIENT_SECRET: '', PAYPAL_LOOKBACK_DAYS: '30', PAYPAL_CURRENCY: 'USD' },
+    gemini: { GEMINI_API_KEY: '', GEMINI_TEXT_MODEL: 'gemini-3.1-flash-lite-preview', GEMINI_IMAGE_MODEL: 'gemini-3.1-flash-image-preview' },
+    youtube: { YOUTUBE_API_KEY: '', YOUTUBE_CHANNEL_ID: '' },
+    'youtube-oauth': { YOUTUBE_OAUTH_CLIENT_ID: '', YOUTUBE_OAUTH_CLIENT_SECRET: '' },
+    instagram: { META_ACCESS_TOKEN: '', INSTAGRAM_BUSINESS_ID: '' },
+    threads: { THREADS_ACCESS_TOKEN: '', THREADS_USER_ID: '' },
+  };
+
+  const brainDir = getBrainDir();
+  
+  // Telegram
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'secretary', 'tools', 'telegram_setup.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.telegram.TELEGRAM_BOT_TOKEN = cfg.TELEGRAM_BOT_TOKEN || '';
+      out.telegram.TELEGRAM_CHAT_ID = cfg.TELEGRAM_CHAT_ID || '';
+    }
+  } catch {}
+
+  // Gemini
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'business', 'tools', 'gemini_account.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.gemini.GEMINI_API_KEY = cfg.API_KEY || '';
+      if (cfg.TEXT_MODEL) out.gemini.GEMINI_TEXT_MODEL = cfg.TEXT_MODEL;
+      if (cfg.IMAGE_MODEL) out.gemini.GEMINI_IMAGE_MODEL = cfg.IMAGE_MODEL;
+    }
+  } catch {}
+
+  // PayPal
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'business', 'tools', 'paypal_revenue.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.paypal.PAYPAL_MODE = cfg.MODE || 'sandbox';
+      out.paypal.PAYPAL_CLIENT_ID = cfg.CLIENT_ID || '';
+      out.paypal.PAYPAL_CLIENT_SECRET = cfg.CLIENT_SECRET || '';
+      if (cfg.LOOKBACK_DAYS) out.paypal.PAYPAL_LOOKBACK_DAYS = String(cfg.LOOKBACK_DAYS);
+      if (cfg.CURRENCY) out.paypal.PAYPAL_CURRENCY = cfg.CURRENCY;
+    }
+  } catch {}
+
+  // YouTube
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'youtube', 'tools', 'youtube_account.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.youtube.YOUTUBE_API_KEY = cfg.YOUTUBE_API_KEY || '';
+      out.youtube.YOUTUBE_CHANNEL_ID = cfg.MY_CHANNEL_ID || '';
+      out['youtube-oauth'].YOUTUBE_OAUTH_CLIENT_ID = cfg.YOUTUBE_OAUTH_CLIENT_ID || '';
+      out['youtube-oauth'].YOUTUBE_OAUTH_CLIENT_SECRET = cfg.YOUTUBE_OAUTH_CLIENT_SECRET || '';
+    }
+  } catch {}
+
+  // Instagram
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'instagram', 'tools', 'instagram_account.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.instagram.META_ACCESS_TOKEN = cfg.META_ACCESS_TOKEN || '';
+      out.instagram.INSTAGRAM_BUSINESS_ID = cfg.INSTAGRAM_BUSINESS_ID || '';
+    }
+  } catch {}
+
+  // Threads
+  try {
+    const p = path.join(brainDir, '_company', '_agents', 'instagram', 'tools', 'threads_account.json');
+    if (fs.existsSync(p)) {
+      const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      out.threads.THREADS_ACCESS_TOKEN = cfg.THREADS_ACCESS_TOKEN || '';
+      out.threads.THREADS_USER_ID = cfg.THREADS_USER_ID || '';
+    }
+  } catch {}
+
+  return out;
 }
+
+function saveCanonicalApiConnection(serviceId: string, values: Record<string, string>) {
+  const brainDir = getBrainDir();
+  
+  if (serviceId === 'telegram') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'secretary', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'telegram_setup.json');
+    fs.writeFileSync(p, JSON.stringify({
+      TELEGRAM_BOT_TOKEN: (values.TELEGRAM_BOT_TOKEN || '').trim(),
+      TELEGRAM_CHAT_ID: (values.TELEGRAM_CHAT_ID || '').trim()
+    }, null, 2));
+  }
+  
+  if (serviceId === 'gemini') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'business', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'gemini_account.json');
+    let existing: any = {};
+    if (fs.existsSync(p)) { try { existing = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {} }
+    existing.API_KEY = (values.GEMINI_API_KEY || '').trim();
+    existing.TEXT_MODEL = (values.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite-preview').trim();
+    existing.IMAGE_MODEL = (values.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview').trim();
+    fs.writeFileSync(p, JSON.stringify(existing, null, 2));
+  }
+
+  if (serviceId === 'paypal') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'business', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'paypal_revenue.json');
+    let existing: any = {};
+    if (fs.existsSync(p)) { try { existing = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {} }
+    existing.MODE = (values.PAYPAL_MODE || 'sandbox').trim();
+    existing.CLIENT_ID = (values.PAYPAL_CLIENT_ID || '').trim();
+    existing.CLIENT_SECRET = (values.PAYPAL_CLIENT_SECRET || '').trim();
+    const lookback = parseInt(values.PAYPAL_LOOKBACK_DAYS || '30', 10);
+    existing.LOOKBACK_DAYS = isNaN(lookback) ? 30 : lookback;
+    existing.CURRENCY = (values.PAYPAL_CURRENCY || 'USD').trim();
+    fs.writeFileSync(p, JSON.stringify(existing, null, 2));
+  }
+
+  if (serviceId === 'youtube' || serviceId === 'youtube-oauth') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'youtube', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'youtube_account.json');
+    let existing: any = {};
+    if (fs.existsSync(p)) { try { existing = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {} }
+    if (serviceId === 'youtube') {
+      existing.YOUTUBE_API_KEY = (values.YOUTUBE_API_KEY || '').trim();
+      existing.MY_CHANNEL_ID = (values.YOUTUBE_CHANNEL_ID || '').trim();
+    } else {
+      existing.YOUTUBE_OAUTH_CLIENT_ID = (values.YOUTUBE_OAUTH_CLIENT_ID || '').trim();
+      existing.YOUTUBE_OAUTH_CLIENT_SECRET = (values.YOUTUBE_OAUTH_CLIENT_SECRET || '').trim();
+    }
+    fs.writeFileSync(p, JSON.stringify(existing, null, 2));
+  }
+
+  if (serviceId === 'instagram') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'instagram', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'instagram_account.json');
+    let existing: any = {};
+    if (fs.existsSync(p)) { try { existing = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {} }
+    existing.META_ACCESS_TOKEN = (values.META_ACCESS_TOKEN || '').trim();
+    existing.INSTAGRAM_BUSINESS_ID = (values.INSTAGRAM_BUSINESS_ID || '').trim();
+    fs.writeFileSync(p, JSON.stringify(existing, null, 2));
+  }
+
+  if (serviceId === 'threads') {
+    const toolDir = path.join(brainDir, '_company', '_agents', 'instagram', 'tools');
+    fs.mkdirSync(toolDir, { recursive: true });
+    const p = path.join(toolDir, 'threads_account.json');
+    let existing: any = {};
+    if (fs.existsSync(p)) { try { existing = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {} }
+    existing.THREADS_ACCESS_TOKEN = (values.THREADS_ACCESS_TOKEN || '').trim();
+    existing.THREADS_USER_ID = (values.THREADS_USER_ID || '').trim();
+    fs.writeFileSync(p, JSON.stringify(existing, null, 2));
+  }
+}
+
+function loadConfig(): Config {
+  let cfg = { ...DEFAULTS };
+  try { cfg = { ...cfg, ...JSON.parse(fs.readFileSync(cfgPath, 'utf8')) }; } catch {}
+  
+  // Merge canonical keys from _company
+  try {
+    const canonical = readCanonicalApiConnections();
+    if (canonical.telegram.TELEGRAM_BOT_TOKEN) cfg.telegramToken = canonical.telegram.TELEGRAM_BOT_TOKEN;
+    if (canonical.telegram.TELEGRAM_CHAT_ID) cfg.telegramChatId = canonical.telegram.TELEGRAM_CHAT_ID;
+    
+    if (canonical.paypal.PAYPAL_CLIENT_ID) cfg.paypalClientId = canonical.paypal.PAYPAL_CLIENT_ID;
+    if (canonical.paypal.PAYPAL_CLIENT_SECRET) cfg.paypalSecret = canonical.paypal.PAYPAL_CLIENT_SECRET;
+    
+    if (canonical.gemini.GEMINI_API_KEY) {
+      if (!cfg.apiKeys) cfg.apiKeys = {};
+      cfg.apiKeys.gemini = canonical.gemini.GEMINI_API_KEY;
+    }
+    
+    // Also merge into apiConn
+    if (!cfg.apiConn) cfg.apiConn = {};
+    for (const serviceId of Object.keys(canonical)) {
+      cfg.apiConn[serviceId] = { ...(cfg.apiConn[serviceId] || {}), ...canonical[serviceId] };
+    }
+  } catch (err) {
+    console.error('Failed to merge canonical credentials:', err);
+  }
+  
+  return cfg;
+}
+
 function saveConfig(patch: Partial<Config>): Config {
   const next = { ...loadConfig(), ...patch };
   try { fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2)); } catch { /* ignore */ }
@@ -165,7 +356,7 @@ function createWindow() {
     height: 720,
     minWidth: 720,
     minHeight: 560,
-    title: 'Axios AI',
+    title: 'AXIOS CLI',
     backgroundColor: '#0b1020',
     show: false,                 // 흰 화면 플래시 방지 — 렌더러 준비되면 보여줌
     webPreferences: {
@@ -201,9 +392,9 @@ function trayIcon() {
 function buildTray() {
   if (tray) return;
   try { tray = new Tray(trayIcon()); } catch { return; }
-  tray.setToolTip('Axios AI — 1인 기업 AI 비서');
+  tray.setToolTip('AXIOS CLI — 1인 기업 AI 비서');
   const menu = Menu.buildFromTemplate([
-    { label: '🏢 Axios AI 열기', click: () => showWindow() },
+    { label: '🏢 AXIOS CLI 열기', click: () => showWindow() },
     { label: '📋 오늘 브리핑 받기', click: () => runBriefing(true) },
     { label: '➕ 새 대화', click: () => { showWindow(); win?.webContents.send('tray:newchat'); } },
     { type: 'separator' },
@@ -220,7 +411,7 @@ async function runBriefing(manual = false) {
   try {
     const c = loadConfig();
     const target = await detectTarget({ base: c.llmBase, model: c.llmModel, key: geminiKey() });
-    if (!target) { notify('Axios AI', '모델(LM Studio/Ollama)을 먼저 켜면 아침 브리핑을 드릴게요.'); return; }
+    if (!target) { notify('AXIOS CLI', '모델(LM Studio/Ollama)을 먼저 켜면 아침 브리핑을 드릴게요.'); return; }
     const open = openTasks(), pend = pendingApprovals();
     const ctx = [
       `지금: ${new Date().toLocaleString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long', hour: '2-digit', minute: '2-digit' })} (${new Date().getHours() < 12 ? '오전' : '오후'})`,
@@ -257,10 +448,12 @@ function scheduleBriefing() {
 }
 
 app.whenReady().then(() => {
-  cfgPath = path.join(app.getPath('userData'), 'axios-ai-config.json');
-  setBrainFile(path.join(app.getPath('userData'), 'brain.json'));
-  setTaskFile(path.join(app.getPath('userData'), 'tasks.json'));
-  setApprovalFile(path.join(app.getPath('userData'), 'approvals.json'));
+  const brainDir = getBrainDir();
+  if (!fs.existsSync(brainDir)) { fs.mkdirSync(brainDir, { recursive: true }); }
+  cfgPath = path.join(brainDir, 'axios-cli-config.json');
+  setBrainFile(path.join(brainDir, 'brain.json'));
+  setTaskFile(path.join(brainDir, '_company', '_shared', 'tracker.json'));
+  setApprovalFile(path.join(brainDir, '_company', 'approvals'));
   try { setMcpConfig(loadConfig().mcpConfig); } catch { /* */ }
   createWindow();
   buildTray();
@@ -272,10 +465,10 @@ app.whenReady().then(() => {
   try {
     autoUpdater.checkForUpdatesAndNotify();
     autoUpdater.on('update-available', () => {
-      notify('Axios AI 업데이트', '새로운 업데이트가 발견되어 다운로드를 시작합니다.');
+      notify('AXIOS CLI 업데이트', '새로운 업데이트가 발견되어 다운로드를 시작합니다.');
     });
     autoUpdater.on('update-downloaded', () => {
-      notify('Axios AI 업데이트 완료', '업데이트 다운로드가 완료되었습니다. 앱을 재시작하면 설치됩니다.');
+      notify('AXIOS CLI 업데이트 완료', '업데이트 다운로드가 완료되었습니다. 앱을 재시작하면 설치됩니다.');
     });
   } catch (err) {
     console.error('Auto-update initialization error:', err);
@@ -314,7 +507,7 @@ let revenueWin: BrowserWindow | null = null;
 function openRevenueWindow() {
   if (revenueWin && !revenueWin.isDestroyed()) { revenueWin.focus(); return; }
   revenueWin = new BrowserWindow({
-    width: 1180, height: 860, minWidth: 720, minHeight: 560, title: '비즈니스 리포트 — Axios AI',
+    width: 1180, height: 860, minWidth: 720, minHeight: 560, title: '비즈니스 리포트 — AXIOS CLI',
     backgroundColor: '#050816', show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
@@ -489,7 +682,30 @@ ipcMain.handle('integrations:get', () => {
   const c = loadConfig();
   return { telegramToken: c.telegramToken, telegramChatId: c.telegramChatId, apiKeys: c.apiKeys || {}, paypalClientId: c.paypalClientId, paypalSecret: c.paypalSecret };
 });
-ipcMain.handle('integrations:save', (_e, patch: any) => { saveConfig(patch); return true; });
+ipcMain.handle('integrations:save', (_e, patch: any) => {
+  saveConfig(patch);
+  // Sync to canonical JSON files
+  if (patch.telegramToken !== undefined || patch.telegramChatId !== undefined) {
+    const c = loadConfig();
+    saveCanonicalApiConnection('telegram', {
+      TELEGRAM_BOT_TOKEN: patch.telegramToken !== undefined ? patch.telegramToken : c.telegramToken,
+      TELEGRAM_CHAT_ID: patch.telegramChatId !== undefined ? patch.telegramChatId : c.telegramChatId
+    });
+  }
+  if (patch.paypalClientId !== undefined || patch.paypalSecret !== undefined) {
+    const c = loadConfig();
+    saveCanonicalApiConnection('paypal', {
+      PAYPAL_CLIENT_ID: patch.paypalClientId !== undefined ? patch.paypalClientId : c.paypalClientId,
+      PAYPAL_CLIENT_SECRET: patch.paypalSecret !== undefined ? patch.paypalSecret : c.paypalSecret
+    });
+  }
+  if (patch.apiKeys && patch.apiKeys.gemini !== undefined) {
+    saveCanonicalApiConnection('gemini', {
+      GEMINI_API_KEY: patch.apiKeys.gemini
+    });
+  }
+  return true;
+});
 
 // 🔌 서비스 정의 기반 API 패널 (익스텐션과 동일 구조) — 자격증명을 apiConn 에 저장
 ipcMain.handle('api:get', () => {
@@ -502,6 +718,9 @@ ipcMain.handle('api:get', () => {
   return conn;
 });
 ipcMain.handle('api:save', async (_e, serviceId: string, values: Record<string, string>) => {
+  // Sync to canonical first!
+  saveCanonicalApiConnection(serviceId, values);
+
   const c = loadConfig();
   const apiConn = { ...(c.apiConn || {}), [serviceId]: values };
   const patch: any = { apiConn };
@@ -523,6 +742,8 @@ ipcMain.handle('api:save', async (_e, serviceId: string, values: Record<string, 
         const list = upd.data?.result || []; const last = list[list.length - 1];
         const cid = last?.message?.chat?.id; const cname = last?.message?.chat?.first_name || last?.message?.chat?.title || '';
         if (cid) { chat = String(cid); saveConfig({ telegramChatId: chat, apiConn: { ...apiConn, telegram: { ...values, TELEGRAM_CHAT_ID: chat } } });
+          // Also sync to canonical
+          saveCanonicalApiConnection('telegram', { TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: chat });
           return { ok: true, note: `✅ 연결됨 — 📲 chat_id 자동 감지 (${cname})` }; }
         return { ok: true, note: '✅ 토큰 확인됨 — 봇한테 메시지 한 번 보내고 다시 저장하면 chat_id 자동 입력' };
       }
@@ -535,7 +756,7 @@ ipcMain.handle('telegram:test', async () => {
   const c = loadConfig();
   if (!c.telegramToken || !c.telegramChatId) return { ok: false, reason: '봇 토큰과 챗 ID를 먼저 입력하세요' };
   try {
-    await axios.post(`https://api.telegram.org/bot${c.telegramToken}/sendMessage`, { chat_id: c.telegramChatId, text: `` + `✅ Axios AI 연결 완료 — ${c.agentName}가 인사드립니다, ${c.userTitle || '사장님'}!` }, { timeout: 9000 });
+    await axios.post(`https://api.telegram.org/bot${c.telegramToken}/sendMessage`, { chat_id: c.telegramChatId, text: `` + `✅ AXIOS CLI 연결 완료 — ${c.agentName}가 인사드립니다, ${c.userTitle || '사장님'}!` }, { timeout: 9000 });
     return { ok: true };
   } catch (e: any) { return { ok: false, reason: e?.response?.data?.description || e?.message || '전송 실패' }; }
 });
@@ -685,11 +906,11 @@ ipcMain.handle('train:notebook', async () => {
   const nb = buildNotebook(dataset, h.HF_BASE_MODEL || 'unsloth/gemma-2-2b-it-bnb-4bit', `${owner}/axios-ai-brain`);
   // GitHub 연결돼 있으면 커밋 → Colab 원클릭
   if (g.GITHUB_TOKEN && (g.GITHUB_DEFAULT_REPO || '').includes('/')) {
-    const r = await pushFile(g.GITHUB_TOKEN, g.GITHUB_DEFAULT_REPO, 'axios-ai/train.ipynb', nb, '🚀 Axios AI 장기기억 학습 노트북');
-    if (r.ok) { const [o, n] = g.GITHUB_DEFAULT_REPO.split('/'); return { ok: true, colab: `https://colab.research.google.com/github/${o}/${n}/blob/main/axios-ai/train.ipynb`, github: r.url }; }
+    const r = await pushFile(g.GITHUB_TOKEN, g.GITHUB_DEFAULT_REPO, 'axios-cli/train.ipynb', nb, '🚀 AXIOS CLI 장기기억 학습 노트북');
+    if (r.ok) { const [o, n] = g.GITHUB_DEFAULT_REPO.split('/'); return { ok: true, colab: `https://colab.research.google.com/github/${o}/${n}/blob/main/axios-cli/train.ipynb`, github: r.url }; }
   }
   // 폴백: 바탕화면 저장 + Colab 업로드 페이지
-  const out = path.join(os.homedir(), 'Desktop', 'axios-ai-train.ipynb');
+  const out = path.join(os.homedir(), 'Desktop', 'axios-cli-train.ipynb');
   try { fs.writeFileSync(out, nb, 'utf8'); shell.showItemInFolder(out); return { ok: true, local: out, colab: 'https://colab.research.google.com/#create=true', note: 'GitHub 미연결 — 바탕화면 노트북을 Colab에 업로드하세요.' }; }
   catch (e: any) { return { ok: false, error: e?.message || String(e) }; }
 });
@@ -727,9 +948,39 @@ ipcMain.handle('approvals:list', () => listApprovals());
 ipcMain.handle('approvals:approve', async (_e, id: string) => {
   const a = getApproval(id);
   let result = '';
-  if (a?.action) result = await executeAction(a.action);
+  if (a) {
+    if (a.action) {
+      result = await executeAction(a.action);
+    } else if (a.kind && a.rawPayload) {
+      const brainDir = getBrainDir();
+      const execPath = path.join(brainDir, '_company', 'approvals', 'executors', `${a.kind}.js`);
+      if (fs.existsSync(execPath)) {
+        try {
+          const res = spawnSync('node', [execPath], {
+            cwd: path.join(brainDir, '_company'),
+            encoding: 'utf-8',
+            timeout: 60000,
+            input: JSON.stringify(a.rawPayload),
+          });
+          result = (res.stdout || '') + (res.stderr ? `\n[stderr]\n${res.stderr}` : '');
+          if (res.status !== 0) {
+            result = `⚠️ 실행 실패 (Executor): ${result}`;
+          } else {
+            result = `✅ 실행 완료: ${result}`;
+          }
+        } catch (e: any) {
+          result = `⚠️ 실행 에러 (Executor): ${e?.message || e}`;
+        }
+      } else {
+        result = `(실행기 없음: ${a.kind} — 수동 조치 필요)`;
+      }
+    }
+  }
   setApprovalStatus(id, 'approved', result);
-  if (a?.action) { win?.webContents.send('engine:event', { kind: 'tool', name: 'approve-done', path: result.slice(0, 60), ok: !result.startsWith('⚠️') }); notify('✅ 실행 완료', `${a.title} — ${result.slice(0, 100)}`); }
+  if (a) {
+    win?.webContents.send('engine:event', { kind: 'tool', name: 'approve-done', path: result.slice(0, 60), ok: !result.startsWith('⚠️') });
+    notify('✅ 실행 완료', `${a.title} — ${result.slice(0, 100)}`);
+  }
   return { list: listApprovals(), result };
 });
 ipcMain.handle('approvals:reject', (_e, id: string) => { setApprovalStatus(id, 'rejected'); return { list: listApprovals() }; });

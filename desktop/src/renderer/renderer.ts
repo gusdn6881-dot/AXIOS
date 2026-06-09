@@ -1,4 +1,4 @@
-// Axios AI Desktop 렌더러 — 익스텐션 디자인 그대로. preload window.connect 로 통신.
+// AXIOS CLI 렌더러 — 익스텐션 디자인 그대로. preload window.connect 로 통신.
 import { AGENTS, AGENT_ORDER } from '../agents';
 import { BrainViz } from './brainviz';
 declare global { interface Window { connect: any; webkitSpeechRecognition: any; SpeechRecognition: any; } }
@@ -180,10 +180,10 @@ $('pickWorkspace').addEventListener('click', async () => {
   ($('cfgWorkspace') as HTMLInputElement).value = w;
   hint('작업 폴더: ' + w);
 });
-// 목소리/모드 미리듣기 — Axios AI 브랜딩 (언어 자동)
+// 목소리/모드 미리듣기 — AXIOS CLI 브랜딩 (언어 자동)
 function previewLine(): string {
   const v = chosenVoice();
-  return v && /^en/i.test(v.lang) ? 'Axios AI online. Ready, sir.' : `Axios AI 준비 완료. ${agentName()} 대기 중입니다.`;
+  return v && /^en/i.test(v.lang) ? 'AXIOS CLI online. Ready, sir.' : `AXIOS CLI 준비 완료. ${agentName()} 대기 중입니다.`;
 }
 $('cfgVoiceName').addEventListener('change', (e: any) => { cfg.voiceName = e.target.value; cfg.voice = true; speak(previewLine()); });
 $('cfgJarvis').addEventListener('change', (e: any) => { cfg.jarvis = e.target.checked; cfg.voice = true; speak(previewLine()); });

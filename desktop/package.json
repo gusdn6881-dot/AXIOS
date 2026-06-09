@@ -1,7 +1,7 @@
 {
-  "name": "axios-ai-desktop",
+  "name": "axios-cli",
   "version": "0.2.0",
-  "description": "Axios AI — 자비스 같은 1인 기업 AI 비서 (데스크톱 앱, 비개발자용)",
+  "description": "AXIOS CLI — 자비스 같은 1인 기업 AI 비서 (데스크톱 앱, 비개발자용)",
   "main": "out/main.js",
   "author": "Axios AI Lab",
   "license": "MIT",
@@ -31,8 +31,8 @@
     "typescript": "^5.5.0"
   },
   "build": {
-    "appId": "ai.axios.desktop",
-    "productName": "Axios AI",
+    "appId": "ai.axios.cli",
+    "productName": "AXIOS CLI",
     "directories": {
       "output": "release"
     },
@@ -69,7 +69,7 @@
       }
     },
     "dmg": {
-      "artifactName": "Axios-AI-${version}-mac-arm64.dmg"
+      "artifactName": "AXIOS-CLI-${version}-mac-arm64.dmg"
     },
     "win": {
       "target": [
@@ -80,7 +80,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Axios-AI-${version}-win-x64-Setup.exe"
+      "artifactName": "AXIOS-CLI-${version}-win-x64-Setup.exe"
     }
   }
 }
