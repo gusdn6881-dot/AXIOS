@@ -62,10 +62,12 @@ contextBridge.exposeInMainWorld('connect', {
   tasksAdd: (title: string) => ipcRenderer.invoke('tasks:add', title),
   tasksDone: (id: string) => ipcRenderer.invoke('tasks:done', id),
   tasksCancel: (id: string) => ipcRenderer.invoke('tasks:cancel', id),
+  tasksResults: () => ipcRenderer.invoke('tasks:results'),
   // ✅ 승인 큐
   approvalsList: () => ipcRenderer.invoke('approvals:list'),
   approvalsApprove: (id: string) => ipcRenderer.invoke('approvals:approve', id),
   approvalsReject: (id: string) => ipcRenderer.invoke('approvals:reject', id),
+  approvalsTest: () => ipcRenderer.invoke('approvals:test'),
   // 💰 매출 대시보드 (별도 창)
   openRevenue: () => ipcRenderer.invoke('revenue:open'),
   revReady: () => ipcRenderer.invoke('revenue:ready'),
@@ -97,4 +99,79 @@ contextBridge.exposeInMainWorld('connect', {
     ipcRenderer.on('plaza:peer', h);
     return () => ipcRenderer.removeListener('plaza:peer', h);
   },
+
+  // 📱 폰 웹 리모컨 — 같은 와이파이에서 폰 브라우저로 운영 지휘
+  remoteInfo: () => ipcRenderer.invoke('remote:info'),
+
+  // 🧠 두뇌 분야별 성장 통계
+  brainStats: () => ipcRenderer.invoke('brain:stats'),
+
+  // 📅 Google Calendar OAuth 자동 연결
+  calendarOAuth: () => ipcRenderer.invoke('calendar:oauth'),
+
+  // 🧬 장기 기억 — 학습 데이터 빌드·업로드
+  brainBuildDataset: (augment: boolean) => ipcRenderer.invoke('brain:buildDataset', augment),
+  brainBuildPreference: () => ipcRenderer.invoke('brain:buildPreference'),
+  brainModelName: () => ipcRenderer.invoke('brain:modelName'),
+  hfUploadBrain: () => ipcRenderer.invoke('hf:uploadBrain'),
+  hfUploadPreference: () => ipcRenderer.invoke('hf:uploadPreference'),
+  methodsList: () => ipcRenderer.invoke('methods:list'),
+  brainLinkBrain: (repo: string, pw: string) => ipcRenderer.invoke('brain:linkBrain', repo, pw),
+  onDatasetProgress: (cb: (d: any) => void) => {
+    const h = (_e: any, d: any) => cb(d);
+    ipcRenderer.on('dataset:progress', h);
+    return () => ipcRenderer.removeListener('dataset:progress', h);
+  },
+
+  // 🔌 에제르 브릿지 상태
+  bridgeStatus: () => ipcRenderer.invoke('bridge:status'),
+
+  // 📁 파일시스템 (에이전트 도구)
+  fsTree: (dir: string) => ipcRenderer.invoke('fs:tree', dir),
+  fsRead: (filePath: string) => ipcRenderer.invoke('fs:read', filePath),
+  fsWrite: (filePath: string, content: string) => ipcRenderer.invoke('fs:write', filePath, content),
+  fsReveal: (filePath: string) => ipcRenderer.invoke('fs:reveal', filePath),
+  pathForFile: (name: string) => ipcRenderer.invoke('path:forFile', name),
+
+  // ⌨️ 터미널
+  termRun: (cmd: string) => ipcRenderer.invoke('term:run', cmd),
+  termKill: () => ipcRenderer.invoke('term:kill'),
+
+  // 🤖 에이전트 자동화 스케줄러
+  automationRegister: (agentId: string, task: string, intervalHours: number) => ipcRenderer.invoke('automation:register', agentId, task, intervalHours),
+  automationList: () => ipcRenderer.invoke('automation:list'),
+  automationStop: (id: string) => ipcRenderer.invoke('automation:stop', id),
+
+  // ⚪ 내장 로컬 AI 엔진 및 HuggingFace 다운로더
+  localStatus: () => ipcRenderer.invoke('local:status'),
+  localModels: () => ipcRenderer.invoke('local:models'),
+  localStart: (modelPath: string) => ipcRenderer.invoke('local:start', modelPath),
+  localStop: () => ipcRenderer.invoke('local:stop'),
+  localDelete: (filePath: string) => ipcRenderer.invoke('local:delete', filePath),
+  localSetOptions: (o: any) => ipcRenderer.invoke('local:setOptions', o),
+  hfSearch: (q: string) => ipcRenderer.invoke('hf:search', q),
+  hfFiles: (repo: string) => ipcRenderer.invoke('hf:files', repo),
+  hfDownload: (repo: string, file: string) => ipcRenderer.invoke('hf:download', repo, file),
+  hfRecommended: () => ipcRenderer.invoke('hf:recommended'),
+  onLocalStatus: (cb: (s: any) => void) => {
+    const h = (_e: any, s: any) => cb(s);
+    ipcRenderer.on('local:statusChange', h);
+    return () => ipcRenderer.removeListener('local:statusChange', h);
+  },
+  onHfProgress: (cb: (p: any) => void) => {
+    const h = (_e: any, p: any) => cb(p);
+    ipcRenderer.on('hf:progress', h);
+    return () => ipcRenderer.removeListener('hf:progress', h);
+  },
+
+  // 🚀 운영 사이클 및 회원 연동
+  opsStart: () => ipcRenderer.invoke('ops:start'),
+  opsStop: () => ipcRenderer.invoke('ops:stop'),
+  opsStatus: () => ipcRenderer.invoke('ops:status'),
+  authCurrent: () => ipcRenderer.invoke('auth:current'),
+  authSignup: (email: string, pw: string, profile: any) => ipcRenderer.invoke('auth:signup', email, pw, profile),
+  authLogin: (email: string, pw: string) => ipcRenderer.invoke('auth:login', email, pw),
+  authLogout: () => ipcRenderer.invoke('auth:logout'),
+  officeOpen: () => ipcRenderer.invoke('office:open'),
 });
+

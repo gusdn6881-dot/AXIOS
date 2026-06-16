@@ -1,0 +1,2 @@
+FROM ./gemma4-12b-q3.gguf
+TEMPLATE "{{ if .System }}<|im_start|>system\n{{ .System }}<|im_end|>\n{{ end }}{{ if .Prompt }}<|im_start|>user\n{{ .Prompt }}<|im_end|>\n{{ end }}:<|im_start|>assistant\n{{ .Response }}<|im_end|>\n"

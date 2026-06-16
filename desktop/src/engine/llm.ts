@@ -116,7 +116,7 @@ interface OneShot { text: string; truncated: boolean; }
 async function callOnce(t: LlmTarget, messages: ChatMessage[], opts: ChatOpts, stream: boolean): Promise<OneShot> {
   if (t.engine === 'lmstudio' || t.engine === 'gemini') {
     // OpenAI 호환 (LM Studio 로컬 / Gemini 클라우드)
-    const url = t.engine === 'gemini' ? `${t.base}/chat/completions` : `${t.base}/v1/chat/completions`;
+    const url = `${t.base}/v1/chat/completions`;
     const headers: any = t.key ? { Authorization: `Bearer ${t.key}` } : {};
     const body: any = { model: t.model, messages, temperature: opts.temperature ?? 0.6, stream };
     if (opts.frequencyPenalty != null) body.frequency_penalty = opts.frequencyPenalty;

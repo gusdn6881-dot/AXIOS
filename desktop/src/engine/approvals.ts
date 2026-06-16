@@ -105,6 +105,12 @@ export function approvalCount(): number {
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+export type ApprovalCallback = (a: Approval) => void;
+let approvalListener: ApprovalCallback | null = null;
+export function setApprovalListener(cb: ApprovalCallback) {
+  approvalListener = cb;
+}
+
 export function addApproval(title: string, summary = '', agentEmoji = '🤖', action?: ApprovalAction): Approval {
   loadFromDirectory();
   const id = `apr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -158,6 +164,9 @@ ${JSON.stringify(ap.payload, null, 2)}
     fs.writeFileSync(path.join(pendingDir, `${id}.json`), JSON.stringify(ap, null, 2), 'utf8');
     
     items.push(a);
+    if (approvalListener) {
+      try { approvalListener(a); } catch (e) { console.error('Failed to notify approval listener:', e); }
+    }
   } catch (err) {
     console.error('Failed to save approval to files:', err);
   }

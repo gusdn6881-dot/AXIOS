@@ -44,3 +44,33 @@ export async function fetchAnalytics(accessToken: string): Promise<any> {
     return { ok: true, analytics: { views: row[0] || 0, minutesWatched: row[1] || 0, avgViewDuration: row[2] || 0, avgViewPercentage: row[3] || 0, subscribersGained: row[4] || 0 } };
   } catch (e: any) { return { ok: false, error: e?.response?.data?.error?.message || e?.message }; }
 }
+
+// v3 API로 해당 채널의 최신 댓글 5개 수집
+export async function fetchChannelComments(apiKey: string, channelId: string): Promise<any> {
+  if (!apiKey || !channelId) return { ok: false, error: 'YouTube API Key와 Channel ID를 🗂️ 연동에서 입력하세요.' };
+  try {
+    const res = await axios.get(`${API}/commentThreads`, {
+      params: {
+        part: 'snippet',
+        allThreadsRelatedToChannelId: channelId,
+        maxResults: 5,
+        key: apiKey
+      },
+      timeout: 15000
+    });
+    const items = res.data?.items || [];
+    const comments = items.map((i: any) => {
+      const topComment = i.snippet?.topLevelComment?.snippet;
+      return {
+        author: topComment?.authorDisplayName,
+        text: topComment?.textDisplay,
+        publishedAt: topComment?.publishedAt,
+        likeCount: topComment?.likeCount
+      };
+    });
+    return { ok: true, comments };
+  } catch (e: any) {
+    return { ok: false, error: e?.response?.data?.error?.message || e?.message || String(e) };
+  }
+}
+

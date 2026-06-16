@@ -7,3 +7,19 @@ preview.html
 releases/
 .env
 *.bak.*
+
+# Heavy temp files
+connect-ai-src-extracted/
+connect-ai-temp-extracted/
+connect-ai-temp.zip
+desktop/node_modules/
+desktop/out/
+desktop/release/
+desktop/vendor/
+_company/projects/trading-agents/node_modules/
+
+# Local binaries and logs
+*.exe
+*.log
+vsce-out.txt
+package-out.txt

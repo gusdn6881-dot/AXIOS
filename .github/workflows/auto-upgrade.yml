@@ -1,0 +1,68 @@
+name: Auto Merge and Release AXIOS CLI
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 6시간마다 실행
+  workflow_dispatch: # 수동 실행 버튼 제공
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout AXIOS CLI Code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Run Upgrade and Merge Script
+        id: upgrade
+        run: |
+          python scripts/upgrade_axios_cli.py
+        # 스크립트가 이미 최신이거나 성공 시 로그를 출력
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit & Push changes
+        id: commit
+        shell: bash
+        run: |
+          git add .
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Auto upgrade to latest Connect AI"
+            git push origin main
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes to commit."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Installer (electron-builder)
+        if: steps.commit.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd desktop
+          npm install
+          npm run dist
+        # electron-builder가 자동으로 GitHub Release에 빌드된 exe 및 yml 파일을 업로드합니다.

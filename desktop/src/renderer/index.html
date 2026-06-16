@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data: https:; media-src 'self' data: blob: https:; connect-src *; script-src 'self';" />
-  <title>AXIOS CLI</title>
+  <title>AXIOS CLI — AI 1인 기업 OS</title>
   <!-- 익스텐션(assets/webview/sidebar.html) 디자인 그대로 -->
   <link rel="stylesheet" href="./extension-ui.css" />
   <link rel="stylesheet" href="./supplement.css" />
@@ -12,9 +12,80 @@
 <body>
   <!-- 부팅 -->
   <div id="boot">
-    <div class="boot-logo">✦ AXIOS&nbsp;CLI<span class="cur">_</span></div>
+    <div class="boot-logo">✦ CONNECT&nbsp;AI<span class="cur">_</span></div>
+    <div class="boot-os">AI 1인 기업 OS</div>
     <div class="boot-sub" id="bootSub">INITIALIZING</div>
     <div class="boot-bar"><div class="boot-bar-fill" id="bootFill"></div></div>
+  </div>
+
+  <!-- 🚀 운영 시작 시네마틱 (부팅 → 팀 기상 → 스캔 → 작전 → 사령부) -->
+  <div class="ops-cinema" id="opsCinema" hidden>
+    <canvas class="ops-rain" id="opsRain"></canvas>
+    <div class="ops-vignette"></div>
+    <div class="ops-stage" id="opsStage"></div>
+    <button class="ops-skip" id="opsSkip">SKIP ✕</button>
+  </div>
+
+  <!-- 🎯 운영 사이클 — 분석 → 사람이 작전 선택 → 하나씩 수행 → 다음 사이클? -->
+  <div class="overlay hidden" id="opsCyclePanel">
+    <div class="overlay-card cycle-card">
+      <div class="cycle-head">
+        <div class="cycle-title">🎯 운영 사이클 <span id="cycleNum">#1</span></div>
+        <div class="cycle-phase ph-idle" id="cyclePhase">대기</div>
+        <button class="overlay-x" data-close="opsCyclePanel">✕</button>
+      </div>
+      <div class="cycle-steps" id="cycleSteps">
+        <div class="cstep" data-ph="planning"><span class="cstep-dot">🔍</span><span class="cstep-t">분석</span></div>
+        <div class="cstep-line"></div>
+        <div class="cstep" data-ph="review"><span class="cstep-dot">☑️</span><span class="cstep-t">검토·분담</span></div>
+        <div class="cstep-line"></div>
+        <div class="cstep" data-ph="executing"><span class="cstep-dot">⚡</span><span class="cstep-t">실행</span></div>
+        <div class="cstep-line"></div>
+        <div class="cstep" data-ph="done"><span class="cstep-dot">🏁</span><span class="cstep-t">완료</span></div>
+      </div>
+      <div class="cycle-summary" id="cycleSummary"></div>
+      <div class="cycle-body" id="cycleBody"></div>
+      <div class="cycle-foot" id="cycleFoot"></div>
+    </div>
+  </div>
+
+  <!-- 🚀 첫 실행 온보딩 — 60초 안에 "우와"까지 -->
+  <div class="overlay hidden" id="welcomePanel">
+    <div class="overlay-card welcome-card">
+      <div class="wel-logo">✦</div>
+      <div class="wel-title">당신의 <b>AI 1인 기업</b>에<br/>오신 걸 환영합니다</div>
+      <div class="wel-sub">3단계만 하면 AI 직원들이 일을 시작해요 — 1분이면 됩니다</div>
+      <div class="wel-steps">
+        <div class="wel-step" id="welStep1">
+          <div class="ws-dot">1</div>
+          <div class="ws-body"><div class="ws-t">🤖 AI 두뇌 켜기</div><div class="ws-d">추천 모델을 받아서 켜요 (무료·내 컴퓨터에서 실행)</div></div>
+          <button class="ws-btn" id="welAiBtn">모델 받기</button>
+        </div>
+        <div class="wel-step" id="welStep2">
+          <div class="ws-dot">2</div>
+          <div class="ws-body"><div class="ws-t">🏢 회사 만들기</div><div class="ws-d">회사 이름만 지으면 에이전트 팀이 생겨요</div></div>
+          <input class="ws-input" id="welCompany" placeholder="회사 이름 (예: 제이 스튜디오)" maxlength="20"/>
+        </div>
+        <div class="wel-step" id="welStep3">
+          <div class="ws-dot">3</div>
+          <div class="ws-body"><div class="ws-t">🚀 첫 운영 시작</div><div class="ws-d">AI 팀이 분석하고 오늘의 작전을 제안합니다</div></div>
+          <button class="ws-btn primary" id="welGoBtn">운영 시작 ▶</button>
+        </div>
+      </div>
+      <div class="wel-eco">
+        <button type="button" class="eco-mini yt" data-url="https://www.youtube.com/channel/UCdLZ0MsYS4hmqFgOYCB6C9w">📺 유튜브 보며 따라하기</button>
+        <button type="button" class="eco-mini" data-url="https://aicitybuilders.com">🎓 무료 강의로 배우기</button>
+      </div>
+      <button class="wel-skip" id="welSkip">나중에 할게요 — 둘러보기</button>
+    </div>
+  </div>
+
+  <!-- 👤 회원 (Firebase Auth) -->
+  <div class="overlay hidden" id="authPanel">
+    <div class="overlay-card auth-card">
+      <div class="overlay-head">👤 <span id="authTitle">로그인</span><button class="overlay-x" data-close="authPanel">✕</button></div>
+      <div id="authBody"></div>
+    </div>
   </div>
 
   <!-- 헤더 (익스텐션 .header 구조 그대로) -->
@@ -26,72 +97,152 @@
       <span class="hdr-clock" id="hdrClock"></span>
     </div>
     <div class="header-right">
-      <button class="btn-icon" id="officeBtn" title="가상 사무실 — 에이전트들이 일하는 모습">🏢</button>
+      <button class="btn-ops" id="opsStartBtn" title="운영 시작 — 분석 → 작전 검토 → 실행 사이클">🚀 운영 시작</button>
+      <span id="agentActiveBadge" class="agent-active-badge hidden">🟢 에이전트 활동중</span>
+      <button class="btn-icon on" id="filesBtn" title="파일 탐색기 접기/펴기">📁</button>
+      <button class="btn-icon" id="termBtn" title="터미널 접기/펴기">⌨️</button>
       <button class="btn-icon" id="brainBtn" title="지식 네트워크 — 단기/장기 기억">🧠</button>
-      <button class="btn-icon" id="plazaBtn" title="AI Agent University">🏫</button>
+      <button class="btn-icon" id="aiBtn" title="내 AI — 어떤 두뇌로 일할지 고르기 (내장 엔진)">🤖</button>
+      <button class="btn-icon" id="hdrPlazaBtn" title="🌐 에이전트 광장 — 다른 회사 AI와 만나는 게임 월드">🏫</button>
       <button class="btn-icon" id="manageBtn" title="관리 — 대시보드·서비스·연동·API">🗂️</button>
       <button class="btn-icon" id="newChatBtn" title="새 대화">+</button>
+      <button class="btn-icon" id="hdrAuthBtn" title="로그인 / 회원">👤</button>
       <button class="btn-icon" id="settingsBtn" title="설정">⚙️</button>
     </div>
   </div>
   <div class="thinking-bar" id="thinkingBar"></div>
+  <div class="update-bar" id="updateBar" hidden></div>
 
-  <!-- 🧠 두뇌 비주얼 (메인) + 대화 오버레이 -->
-  <div class="main-stage" id="mainStage">
-    <canvas id="brainGlobe" class="brain-bg"></canvas>
-    <div class="chat" id="chat"></div>
+  <!-- 메인: 📁 파일(좌) · 💬채팅+📄에디터(중앙) · ⌨️터미널(하단) -->
+  <div class="work-split" id="workSplit">
+    <!-- 좌측: 파일 탐색기 (접기 가능) -->
+    <aside class="side-files" id="sideFiles">
+      <div class="side-head"><span class="side-title">📁 탐색기</span>
+        <span class="side-btns">
+          <button class="code-mini" id="codeRefresh" title="새로고침">↻</button>
+          <button class="code-mini" id="codePickWs" title="작업 폴더 변경">📂</button>
+        </span>
+      </div>
+      <div class="side-path" id="codePath"></div>
+      <div class="code-tree" id="codeTree"></div>
+    </aside>
+
+    <!-- 중앙 -->
+    <div class="center-col">
+      <div class="center-main" id="centerMain">
+        <div class="main-stage" id="mainStage">
+          <canvas id="brainGlobe" class="brain-bg"></canvas>
+          <div class="chat" id="chat"></div>
+        </div>
+        <!-- 📄 에디터 (파일 클릭 시 채팅 위로 등장) -->
+        <div class="editor-panel" id="codeView"></div>
+      </div>
+
+      <!-- ⌨️ 터미널 (하단, 접기 가능) -->
+      <div class="code-term collapsed" id="codeTerm">
+        <div class="term-head">⌨️ 터미널 <span class="term-path" id="termCwd"></span>
+          <span class="term-btns">
+            <button class="code-mini" id="termKillBtn" title="실행 중지">⏹</button>
+            <button class="code-mini" id="termClearBtn" title="지우기">🧹</button>
+            <button class="code-mini" id="termCollapse" title="터미널 접기">⌄</button>
+          </span>
+        </div>
+        <pre class="term-out" id="termOut"></pre>
+        <div class="term-input-row"><span class="term-prompt">$</span><input id="termInput" spellcheck="false" placeholder="명령어 입력 후 Enter (예: ls · npm install)" /></div>
+      </div>
+
+      <!-- 💡 추천 명령 칩 — 첫 화면에서 클릭 한 번으로 wow (첫 메시지 보내면 사라짐) -->
+      <div class="sugg-chips" id="suggChips">
+        <button class="sg-chip" data-act="ops">🎯 운영 시작 — AI 팀에게 오늘 일 시키기</button>
+        <button class="sg-chip" data-q="간단한 계산기 웹앱 만들어서 브라우저로 띄워줘">🌐 계산기 웹앱 만들어 띄워줘</button>
+        <button class="sg-chip" data-q="크롬 열어서 유튜브 들어가줘">🖥️ 크롬 열어서 유튜브</button>
+        <button class="sg-chip" data-q="이번 달 매출이랑 유튜브 현황 보고해줘">💰 매출·채널 현황 보고</button>
+      </div>
+      <div class="input-wrap"><div class="input-box" id="inputBox">
+        <div class="attach-chips" id="attachChips"></div>
+        <textarea id="input" rows="1" placeholder="무엇을 만들어 드릴까요?  (파일·이미지를 끌어다 놓아도 돼요)"></textarea>
+        <div class="input-footer">
+          <span class="input-hint" id="inputHint">Enter 전송 · Shift+Enter 줄바꿈 · 📎 끌어다 놓기</span>
+          <div class="input-btns">
+            <button class="attach-btn" id="attachBtn" title="파일/이미지 첨부">📎</button>
+            <input type="file" id="fileInput" multiple hidden />
+            <button class="stop-btn" id="stopBtn" title="생성 중단" hidden>■</button>
+            <button class="send-btn" id="sendBtn" title="전송 (Enter)">↑</button>
+          </div>
+        </div>
+      </div></div>
+    </div>
   </div>
 
-  <!-- 입력 (익스텐션 .input-wrap/.input-box 그대로) -->
-  <div class="input-wrap"><div class="input-box">
-    <textarea id="input" rows="1" placeholder="무엇을 만들어 드릴까요?"></textarea>
-    <div class="input-footer">
-      <span class="input-hint" id="inputHint">Enter 전송 · Shift+Enter 줄바꿈</span>
-      <div class="input-btns">
-        <button class="stop-btn" id="stopBtn" title="생성 중단" hidden>■</button>
-        <button class="send-btn" id="sendBtn" title="전송 (Enter)">↑</button>
-      </div>
-    </div>
-  </div></div>
-
-  <!-- 광장 오버레이 -->
+  <!-- 🎮 에이전트 광장 — 풀스크린 게임 오버레이 -->
   <div class="overlay hidden" id="plazaPanel">
-    <div class="overlay-card classroom-card">
-      <div class="overlay-head">⬡ AI AGENT UNIVERSITY <span class="cls-count" id="plazaStatus">대기 중</span><button class="overlay-x" data-close="plazaPanel">✕</button></div>
-
-      <!-- 명찰 + 등교 -->
-      <div class="nametag">
-        <span class="nt-pin">📛</span>
-        <input id="plazaEmoji" class="nt-emoji" maxlength="2" title="아바타 이모지" />
-        <div class="nt-fields">
-          <input id="plazaCompany" class="nt-company" placeholder="우리 반 / 회사 이름" />
-          <input id="plazaAgentName" class="nt-agent" placeholder="내 에이전트 이름" />
+    <div class="overlay-card plaza-game-card">
+      <!-- 🌐 게임 월드 (화면 대부분) — 입장한 모든 회사 에이전트가 돌아다님 -->
+      <div class="plaza-world" id="plazaWorld">
+        <!-- 상단 HUD -->
+        <div class="pw-hud">
+          <div class="pw-hud-title">⬡ AGENT PLAZA <span class="pw-hud-count" id="plazaStatus">대기 중</span></div>
+          <div class="pw-hud-btns">
+            <button class="pw-hud-b pw-lab-open hidden" id="pwLabBtn" title="🧪 에이전트 실험실">🧪 실험실</button>
+            <button class="pw-hud-b pw-leave hidden" id="pwLeaveBtn" title="광장에서 퇴장">🚪 퇴장</button>
+            <button class="pw-hud-b" id="pwDexBtn" title="에이전트 도감"><span id="pwDexCount">📕 0</span></button>
+            <button class="pw-hud-b" id="pwBgmBtn" title="배경음">🔇</button>
+            <button class="pw-hud-b" data-close="plazaPanel" title="닫기">✕</button>
+          </div>
         </div>
-        <button id="plazaToggle" class="oc-primary nt-go">🏫 등교</button>
+        <!-- 🧪 실험실 패널 (관리자 전용) -->
+        <div class="pw-lab hidden" id="pwLab">
+          <div class="pw-lab-head">🧪 에이전트 실험실 <span class="pw-lab-sub">다양한 성격의 AI를 풀어놓고 토론을 관찰</span><button class="pw-lab-x" id="pwLabClose">✕</button></div>
+          <div class="pw-lab-personas" id="pwLabPersonas"></div>
+          <div class="pw-lab-ctrl">
+            <label class="pw-lab-count">인원 <input type="range" id="pwLabRange" min="2" max="12" value="6" /> <b id="pwLabNum">6</b>마리</label>
+            <button class="pw-lab-go" id="pwLabSpawn">🚀 실험 시작</button>
+            <button class="pw-lab-stop hidden" id="pwLabStopBtn">⏹ 종료</button>
+          </div>
+          <div class="pw-lab-hint">💡 주제를 등록하면 AI들이 토론해요. 🌾 수확하면 핵심 지식이 내 두뇌에 심깁니다!</div>
+        </div>
+        <!-- 토론 주제 배너 -->
+        <div class="bb-line pw-topic hidden" id="bbLine"></div>
+        <!-- 🌾 수확 시네마틱 오버레이 -->
+        <div class="pw-harvest-fx hidden" id="pwHarvestFx">
+          <div class="phf-crystal" id="phfCrystal">💎</div>
+          <div class="phf-label" id="phfLabel">🌾 집단지성 수확 중…</div>
+          <div class="phf-insight" id="phfInsight"></div>
+          <div class="phf-foot" id="phfFoot"></div>
+        </div>
+        <!-- 입장 전 안내 카드 -->
+        <div class="pw-empty" id="pwEmpty">
+          <div class="pw-empty-emoji">🎮</div>
+          <div class="pw-empty-t">AI 에이전트 광장</div>
+          <div class="pw-empty-d">입장하면 내 에이전트가 캐릭터로 등장해요<br/>다른 회사 AI와 만나 토론·도감 수집!</div>
+          <div class="nametag pw-nametag">
+            <input id="plazaEmoji" class="nt-emoji" maxlength="2" title="아바타 이모지" placeholder="🖥️" />
+            <div class="nt-fields">
+              <input id="plazaCompany" class="nt-company" placeholder="회사 이름" />
+              <input id="plazaAgentName" class="nt-agent" placeholder="내 에이전트 이름" />
+            </div>
+          </div>
+          <button id="plazaToggle" class="pw-enter-btn">🏫 광장 입장</button>
+        </div>
+        <!-- 💬 미니 대화 피드 (게임 위 떠있음) -->
+        <div class="pw-feed hidden" id="feed"></div>
       </div>
-
-      <!-- 교실 -->
-      <div class="classroom" id="classroom">
-        <div class="topic-bar">
-          <input id="topicInput" placeholder="🧑‍🏫 선생님(나)이 낼 문제·주제를 입력 — 에이전트들이 토론·해결합니다" autocomplete="off" />
-          <button id="topicBtn" class="oc-primary">📢 문제 내기</button>
-        </div>
-        <div class="blackboard">
-          <div class="bb-title">◈ HOLO-BOARD · 현재 주제</div>
-          <div class="bb-line" id="bbLine">— 선생님의 문제를 기다리는 중 —</div>
-        </div>
-        <div class="teacher-row">
-          <button id="gradeBtn" class="teacher-btn">🧑‍🏫 채점 — 우등생 뽑기</button>
-          <button id="friendBtn" class="friend-btn">👥 친구 에이전트 부르기</button>
-          <div class="leaderboard" id="leaderboard"></div>
-        </div>
-        <div class="present-strip" id="desks">
-          <div class="cls-empty">아직 아무도 등교 안 했어요 🙋</div>
-        </div>
-        <div class="feed-label">💬 클래스 피드 <span class="feed-sub">— 에이전트들의 대화가 쌓입니다</span></div>
-        <div class="feed" id="feed"></div>
+      <!-- 하단 컨트롤 독 -->
+      <div class="pw-dock">
+        <input id="topicInput" placeholder="🧑‍🏫 토론 주제를 던지면 광장 에이전트들이 토론해요" autocomplete="off" />
+        <button id="topicBtn" class="pw-dock-b primary">📢 주제</button>
+        <button id="gradeBtn" class="pw-dock-b">🌾 지식 수확</button>
       </div>
-      <div class="muted cls-foot">🤖 에이전트들이 자율로 토론합니다 · 🧑‍🏫 선생님(나)이 문제를 냅니다</div>
+      <!-- 📕 에이전트 도감 (펼치기) -->
+      <div class="pw-dex hidden" id="pwDex">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.1); padding:8px; margin-bottom:8px;">
+          <span style="font-weight:700; color:#fff; font-size:12px;">📕 에이전트 도감</span>
+          <button id="closePwDexBtn" style="background:none; border:none; color:#999; font-size:16px; cursor:pointer; padding:0 4px;">✕</button>
+        </div>
+        <div class="pw-dex-grid" id="pwDexGrid"></div>
+      </div>
+      <div class="leaderboard hidden" id="leaderboard"></div>
+      <div class="present-strip hidden" id="desks"></div>
     </div>
   </div>
 
@@ -100,15 +251,11 @@
     <div class="overlay-card">
       <div class="overlay-head">⚙️ 설정 <button class="overlay-x" data-close="settingsPanel">✕</button></div>
       <div class="set-section">🤖 내 비서</div>
-      <div class="row2">
-        <label>에이전트 이름 <span class="muted small">(이렇게 불러요)</span><input id="cfgAgentName" placeholder="예) 자비스, 제이 부하" /></label>
-        <label>나를 부르는 호칭 <span class="muted small">(비서가 날 이렇게 불러요)</span><input id="cfgUserTitle" placeholder="예) 사장님, 대표님, 제이님" /></label>
-      </div>
-      <label>🤖 AI 모델 <span class="muted small">(로컬에서 로드된 모델 자동)</span><select id="modelSel"></select></label>
-      <label>에이전트 인사말 <span class="muted small">(비우면 기본 · {name}=이름 · {title}=내 호칭)</span><input id="cfgGreeting" placeholder="{title}, {name}입니다. 무엇을 도와드릴까요?" /></label>
-      <label class="row"><input type="checkbox" id="cfgVoice" /> 음성 응답(TTS) 켜기</label>
-      <label class="row"><input type="checkbox" id="cfgJarvis" /> 🎙️ AI 보이스 모드 (낮은 톤 + 활성화 효과음)</label>
-      <label>🔊 목소리<select id="cfgVoicePick">
+      <label>나를 부르는 호칭 <span class="muted small">(비서가 날 이렇게 불러요)</span><input id="cfgUserTitle" placeholder="예) 사장님, 대표님, 주인님" /></label>
+      <div class="oc-row" style="margin:2px 0 10px"><button id="openAiTeamBtn" type="button" class="oc-primary">🤖 AI 모델·두뇌 관리 — 내 AI 팀 열기</button></div>
+      <label class="row"><input type="checkbox" id="cfgVoice" /> 🔊 음성 응답(TTS) 켜기</label>
+      <label>목소리<select id="cfgVoicePick">
+        <option value="edge:jarvis">🦾 자비스 — 한국어는 딥 톤, 영어는 영국 집사로 자동 전환 (무료)</option>
         <option value="edge:ko-KR-SunHiNeural">✨ 선희 — 한국어 여성 (자연스러움·무료)</option>
         <option value="edge:ko-KR-InJoonNeural">인준 — 한국어 남성 (무료)</option>
         <option value="edge:ko-KR-HyunsuMultilingualNeural">현수 — 한국어 남성 (무료)</option>
@@ -118,20 +265,36 @@
         <option value="browser">기본 OS 음성 (오프라인)</option>
         <option value="qwen:Sohee">Sohee — 한국어 (Qwen3-TTS·키 필요)</option>
       </select></label>
-      <div class="muted small" style="margin-top:-2px;line-height:1.5">✨ <b>선희</b>(MS Edge 신경망)는 키 없이 무료인데 진짜 자연스러워요. 인터넷만 있으면 됩니다.</div>
       <label class="row"><input type="checkbox" id="cfgTools" /> 🛠️ 파일 도구 — 내 파일 읽기·쓰기 (진짜 에이전트)</label>
-      <label class="row"><input type="checkbox" id="cfgBrainViz" checked /> 🧠 두뇌 비주얼 — 배경 신경망 애니메이션</label>
-      <label class="row"><input type="checkbox" id="cfgBriefing" checked /> 📋 아침 브리핑 받기 <span class="muted small">매일</span> <input type="time" id="cfgBriefingTime" value="09:00" /> <span class="muted small">자동</span></label>
-      <div class="oc-row" style="margin:2px 0 8px"><button id="briefNowBtn" type="button" class="oc-primary">📋 지금 브리핑 받기</button></div>
-      <label class="row"><input type="checkbox" id="cfgAutoSync" checked /> 🔄 지식 자동 동기화 (GitHub) <span class="muted small">— 쌓일 때마다 자동 커밋</span></label>
+      <label class="row"><input type="checkbox" id="cfgBriefing" checked /> 📋 아침 브리핑 <span class="muted small">매일</span> <input type="time" id="cfgBriefingTime" value="09:00" /></label>
+      <div class="oc-row" style="margin:2px 0 8px"><button id="briefNowBtn" type="button" class="oc-primary">📋 지금 브리핑 받기</button><button id="remoteBtn" type="button" class="oc-primary">📱 폰 리모컨 주소</button></div>
+      <div class="oc-row" style="margin:2px 0 10px"><button id="plazaBtn" type="button" class="oc-primary">🏫 AI Agent University (광장)</button><button id="authBtn" type="button" class="oc-primary">👤 회원 로그인</button></div>
+      <div class="set-section">🌱 생태계 — 배우고 · 차리고 · 키우고</div>
+      <div class="eco-grid">
+        <button type="button" class="eco-card" id="ecoYt" style="--ec:#ff4d5e"><span class="ec-e">📺</span><span class="ec-t">CONNECT AI LAB</span><span class="ec-d">유튜브 117K — 만드는 과정 전부 공개</span></button>
+        <button type="button" class="eco-card" id="acbBtn" style="--ec:#ffd166"><span class="ec-e">🎓</span><span class="ec-t">AI CITY BUILDERS</span><span class="ec-d">사람을 교육 — 강의·커뮤니티</span></button>
+        <button type="button" class="eco-card" id="ezerBtn" style="--ec:#10b981"><span class="ec-e">🧠</span><span class="ec-t">Axios AI Lab 지식 스토어</span><span class="ec-d">에이전트를 교육 — 두뇌에 지식 주입</span></button>
+        <button type="button" class="eco-card" id="ecoSite" style="--ec:#39ff14"><span class="ec-e">🦾</span><span class="ec-t">친구에게 공유하기</span><span class="ec-d">connectai-desktop.web.app — 무료</span></button>
+      </div>
+
       <details class="settings-adv"><summary class="muted small">고급 설정</summary>
-        <label>🚀 내 학습 노트북 URL <span class="muted small">(있으면 자동생성 대신 이걸로 — Colab/GitHub)</span><input id="cfgTrainUrl" placeholder="https://colab.research.google.com/..." /></label>
+        <label>에이전트 인사말 <span class="muted small">(비우면 기본 · {name}=이름 · {title}=내 호칭)</span><input id="cfgGreeting" placeholder="{title}, {name}입니다. 무엇을 도와드릴까요?" /></label>
+        <label class="row"><input type="checkbox" id="cfgJarvis" /> 🎙️ AI 보이스 모드 (낮은 톤 + 효과음)</label>
+        <label class="row"><input type="checkbox" id="cfgBrainViz" checked /> 🧠 두뇌 비주얼 — 배경 애니메이션</label>
+        <label class="row"><input type="checkbox" id="cfgAutoSync" checked /> 🔄 지식 자동 동기화 (GitHub)</label>
+        <label class="row"><input type="checkbox" id="cfgEmailAuto" /> 📥 이메일 자동 답장 <span class="muted small">(이메일·텔레그램 연동 필요)</span></label>
+        <label class="row"><input type="checkbox" id="cfgMonitor" checked /> 🛰️ 자산 감시 — 구독·매출·커밋·메일 변화를 폰으로 보고 <span class="muted small">(1시간마다·텔레그램 필요)</span></label>
         <label class="row"><input type="checkbox" id="cfgSafeMode" /> 🛡️ 안전 모드 — GPU 가속 끄기 <span class="muted small">(흰 화면·바로 종료될 때)</span></label>
         <div class="oc-row" style="margin:2px 0 8px"><button id="relaunchBtn" type="button" class="oc-primary">↻ 앱 재시작</button><button id="diagBtn" type="button" class="oc-primary">📄 진단 로그</button></div>
         <label>🎙️ 기본 음성 종류 <span class="muted small">(기본 목소리일 때 OS 음성)</span><select id="cfgVoiceName"></select></label>
         <label>🖥️ 로컬 Qwen3-TTS 서버 <span class="muted small">(있으면 Qwen 음성을 로컬·무료로)</span><input id="cfgTtsLocalUrl" placeholder="http://127.0.0.1:7920" /></label>
-        <label>대학 DB URL (Firebase RTDB)<input id="cfgDbUrl" placeholder="https://...firebasedatabase.app" /></label>
+        <label>🚀 내 학습 노트북 URL <span class="muted small">(Colab/GitHub)</span><input id="cfgTrainUrl" placeholder="https://colab.research.google.com/..." /></label>
         <label>LLM 주소 (비우면 자동 감지)<input id="cfgLlmBase" placeholder="http://127.0.0.1:1234 또는 11434" /></label>
+        <div class="set-section" style="margin-top:8px">🛠️ 운영자 설정 <span class="muted small">(서비스 제공자용 · 일반 사용자는 비워두세요)</span></div>
+        <label>☁️ 학습 서버 URL <span class="muted small">(Firebase 함수 base — 토큰 없이 무료 학습)</span><input id="cfgTrainBackend" placeholder="https://us-central1-내프로젝트.cloudfunctions.net" /></label>
+        <label>👤 회원 Firebase API Key <span class="muted small">(Authentication 켜야 함)</span><input id="cfgFbApiKey" placeholder="AIza..." /></label>
+        <label>👤 회원 DB URL <span class="muted small">(Firebase RTDB)</span><input id="cfgFbDbUrl" placeholder="https://내프로젝트.firebasedatabase.app" /></label>
+        <label>대학 DB URL (Firebase RTDB)<input id="cfgDbUrl" placeholder="https://...firebasedatabase.app" /></label>
       </details>
       <label>📁 작업 폴더 <span class="muted small">(에이전트가 파일 만들 기본 위치)</span>
         <div style="display:flex;gap:6px;margin-top:6px">
@@ -140,7 +303,7 @@
         </div>
       </label>
       <button id="saveCfg" class="oc-primary">저장</button>
-      <p class="muted small">· 이름·회사·아바타 → 🏫 대학 <b>명찰</b>에서 설정</p>
+      <p class="muted small">· 에이전트 이름·회사·아바타 → 🏫 <b>명찰</b> · AI 모델·두뇌 → 🤖 <b>내 AI 팀</b></p>
     </div>
   </div>
 
@@ -163,16 +326,22 @@
           <div class="svc-intel" id="svcIntel"></div>
           <div class="am-head">📺 내 유튜브 채널 <span class="muted small">— 실시간</span></div>
           <div class="yt-dash" id="ytDash"></div>
-          <div class="am-head">👥 우리 직원 에이전트 <span class="muted small">— 클릭하면 상세</span></div>
-          <div class="agent-matrix" id="agentMatrix"></div>
+          <div class="am-head">👥 우리 팀 <span class="muted small">— 이름·얼굴·두뇌 관리</span> <button id="dashTeamBtn" class="oc-primary" style="float:right;padding:4px 10px;font-size:11px">🤖 팀 열기</button></div>
+          <div class="team-roster" id="dashTeamRoster" style="margin-bottom:12px;"></div>
           <div class="am-head">📋 태스크 보드 <span class="muted small">— 할 일 (에이전트가 자동으로 쌓기도 함)</span></div>
           <div class="task-add">
             <input id="taskInput" placeholder="할 일 추가 (예: 썸네일 시안 3개 만들기)" autocomplete="off" />
             <button id="taskAddBtn" class="oc-primary">+ 추가</button>
           </div>
           <div class="task-board" id="taskBoard"></div>
-          <div class="am-head">✅ 승인 큐 <span class="muted small">— 에이전트가 중요한 일 전에 결재 요청</span></div>
+          <div class="am-head" style="display:flex;align-items:center;gap:6px">✅ 승인 큐 <span class="muted small">— 에이전트가 중요한 일 전에 결재 요청</span><button id="aprTestBtn" class="apr-test" title="테스트 결재를 폰(텔레그램)으로 보내 결재 한 바퀴를 체험합니다">✈️ 폰 결재 테스트</button></div>
           <div class="apr-board" id="aprBoard"></div>
+          
+          <div class="am-head" style="display:flex;align-items:center;gap:6px;margin-top:12px">🔄 에이전트 자동화 스케줄러 <span class="muted small">— 주기적으로 실행되는 자동 작업 목록</span></div>
+          <div id="dashAutoListContainer" style="margin-top:8px; max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
+          
+          <div class="am-head" style="display:flex;align-items:center;gap:6px;margin-top:12px">🖥️ 최근 작업 결과물 <span class="muted small">— 완료된 터미널 명령어의 출력 로그</span></div>
+          <div id="taskResultContainer" style="margin-top:8px; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:10px; background:#070b12; border:1px solid #111a2e; border-radius:6px; box-sizing:border-box;"></div>
         </div>
         <!-- 내 서비스 -->
         <div class="msec hidden" id="msec-svc">
@@ -209,9 +378,132 @@
   </div>
 
   <!-- 🏢 사무실 (1인 기업 모드 시각화) -->
+  <!-- 🤖 AI 선택 — 비서가 어떤 두뇌로 일할지 (내장 엔진 · HuggingFace 모델) -->
+  <div class="overlay hidden" id="aiPanel">
+    <div class="overlay-card ai-card">
+      <div class="overlay-head">내 AI 팀 <button class="overlay-x" data-close="aiPanel">✕</button></div>
+      <div class="ai-sec">우리 팀 <span class="muted small" style="font-weight:400">— 카드 클릭=관리 · 미리보기 클릭=사무실</span></div>
+      <div class="office-preview" id="officePreview" title="누르면 사무실 크게 보기"></div>
+      <div class="team-roster" id="teamRoster"></div>
+      <div class="ai-sec">공통 두뇌 <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">— 전용 두뇌 없는 캐릭터들의 기본</span></div>
+      <div class="ai-current" id="aiCurrent"></div>
+      <div class="ai-sec">내 모델</div>
+      <div class="local-models" id="localModels"></div>
+      <div class="ai-sec">검색</div>
+      <div class="hf-search">
+        <input id="hfQuery" placeholder="qwen, llama, gemma…" autocomplete="off" />
+        <button id="hfSearchBtn" class="oc-primary">검색</button>
+      </div>
+      <div class="hf-results" id="hfResults"></div>
+      <div class="hf-dl" id="hfDl" hidden>
+        <div class="hf-dl-bar"><div class="hf-dl-fill" id="hfDlFill"></div></div>
+        <div class="muted small" id="hfDlText"></div>
+      </div>
+      <div class="ai-sec">성격</div>
+      <div class="ap-persona" id="apPersona">
+        <button data-persona="calm">😌 차분함</button>
+        <button data-persona="balanced">⚖️ 균형</button>
+        <button data-persona="creative">✨ 창의적</button>
+        <button data-persona="strict">🎯 깐깐함</button>
+      </div>
+      <details class="ai-advanced">
+        <summary>🎓 전문가 설정 (값 직접 조정 · 배우면서)</summary>
+      <div class="ai-sec">생성 파라미터</div>
+      <div class="ai-params">
+        <div class="ap-slider"><span class="ap-name">창의성 <em>temp</em></span><input type="range" id="apTemp" min="0" max="200" step="5" /><span class="ap-val" id="apTempVal">0.70</span></div>
+        <div class="ap-slider"><span class="ap-name">다양성 <em>top-p</em></span><input type="range" id="apTopP" min="0" max="100" step="1" /><span class="ap-val" id="apTopPVal">0.90</span></div>
+        <div class="ap-slider"><span class="ap-name">어휘 폭 <em>top-k</em></span><input type="range" id="apTopK" min="1" max="100" step="1" /><span class="ap-val" id="apTopKVal">40</span></div>
+        <div class="ap-slider"><span class="ap-name">최소 확률 <em>min-p</em></span><input type="range" id="apMinP" min="0" max="50" step="1" /><span class="ap-val" id="apMinPVal">0.05</span></div>
+        <div class="ap-slider"><span class="ap-name">반복 억제 <em>rep</em></span><input type="range" id="apRep" min="100" max="150" step="1" /><span class="ap-val" id="apRepVal">1.10</span></div>
+        <div class="ap-slider"><span class="ap-name">빈도 억제 <em>freq</em></span><input type="range" id="apFreq" min="0" max="200" step="5" /><span class="ap-val" id="apFreqVal">0.00</span></div>
+        <div class="ap-slider"><span class="ap-name">존재 억제 <em>pres</em></span><input type="range" id="apPres" min="0" max="200" step="5" /><span class="ap-val" id="apPresVal">0.00</span></div>
+        <div class="ap-slider"><span class="ap-name">반복 범위 <em>last-n</em></span><input type="range" id="apLastN" min="0" max="512" step="8" /><span class="ap-val" id="apLastNVal">64</span></div>
+      </div>
+      <div class="ai-sec">성능</div>
+      <div class="ai-params">
+        <label class="ap-row"><span class="ap-name">빠른 응답 <em>flash-attn</em></span><input type="checkbox" id="apFlash" /></label>
+        <div class="ap-row"><span class="ap-name">문맥 길이 <em>ctx</em></span><div class="ap-seg" id="apCtx"><button data-ctx="4096">4K</button><button data-ctx="8192">8K</button><button data-ctx="16384">16K</button><button data-ctx="32768">32K</button></div></div>
+        <div class="ap-row"><span class="ap-name">응답 길이 <em>max</em></span><div class="ap-seg" id="apMax"><button data-max="512">짧음</button><button data-max="1024">보통</button><button data-max="2048">김</button></div></div>
+      </div>
+      <button class="ap-reset" id="apReset">기본값으로 되돌리기</button>
+      </details>
+
+      <div class="ai-sec" style="margin-top:16px; border-top:1px solid #1f3521; padding-top:12px; display:flex; justify-content:space-between; align-items:center;">
+        <span>🤖 에이전트 자동화 스케줄러</span>
+        <button id="autoAddToggleBtn" class="oc-primary" style="margin:0; font-size:11px; padding:3px 8px;">➕ 추가</button>
+      </div>
+      
+      <!-- 자동화 추가 폼 (기본 숨김) -->
+      <div id="autoFormPanel" class="hidden" style="background:rgba(255,255,255,0.02); border:1px solid #1f3521; border-radius:6px; padding:12px; margin-top:8px;">
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <div style="flex:1;">
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:4px;">담당 에이전트</label>
+            <select id="autoAgent" style="width:100%; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:6px; font-size:12px;"></select>
+          </div>
+          <div style="width:120px;">
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:4px;">실행 주기</label>
+            <select id="autoInterval" style="width:100%; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:6px; font-size:12px;">
+              <option value="1">1시간마다</option>
+              <option value="2">2시간마다</option>
+              <option value="4">4시간마다</option>
+              <option value="8">8시간마다</option>
+              <option value="12">12시간마다</option>
+              <option value="24">24시간마다</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <label style="font-size:11px; color:#888; display:block; margin-bottom:4px;">수행할 할 일</label>
+          <textarea id="autoTask" placeholder="에이전트가 주기적으로 수행할 지시 사항을 작성하세요." rows="3" style="width:100%; box-sizing:border-box; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:8px; font-size:12px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button id="autoCancelBtn" class="ap-reset" style="margin:0; padding:4px 10px; font-size:11px;">취소</button>
+          <button id="autoRegisterBtn" class="oc-primary" style="margin:0; padding:4px 12px; font-size:11px;">💾 등록</button>
+        </div>
+      </div>
+
+      <!-- 활성화된 자동화 목록 -->
+      <div id="autoListContainer" style="margin-top:8px; max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+        <!-- 여기에 등록된 자동화 목록 동적 렌더링 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 🤖 에이전트 자동화 스케줄러 추가 모달 -->
+  <div class="overlay hidden" id="autoSchedulerModal">
+    <div class="overlay-card" style="max-width: 440px;">
+      <div class="overlay-head">➕ 자동화 스케줄 추가 <button class="overlay-x" data-close="autoSchedulerModal">✕</button></div>
+      <div style="background:rgba(255,255,255,0.02); border:1px solid #1f3521; border-radius:6px; padding:16px; margin-top:8px;">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:#aaa; display:block; margin-bottom:6px;">담당 에이전트</label>
+          <select id="modalAutoAgent" style="width:100%; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:8px; font-size:13px;"></select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px; color:#aaa; display:block; margin-bottom:6px;">실행 주기</label>
+          <select id="modalAutoInterval" style="width:100%; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:8px; font-size:13px;">
+            <option value="1">1시간마다</option>
+            <option value="2">2시간마다</option>
+            <option value="4">4시간마다</option>
+            <option value="8">8시간마다</option>
+            <option value="12">12시간마다</option>
+            <option value="24">24시간마다</option>
+          </select>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px; color:#aaa; display:block; margin-bottom:6px;">수행할 할 일</label>
+          <textarea id="modalAutoTask" placeholder="에이전트가 주기적으로 수행할 지시 사항을 작성하세요." rows="4" style="width:100%; box-sizing:border-box; background:#0c130d; color:#fff; border:1px solid #1f3521; border-radius:4px; padding:10px; font-size:13px; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button id="modalAutoCancelBtn" class="ap-reset" style="margin:0; padding:6px 12px; font-size:12px;">취소</button>
+          <button id="modalAutoRegisterBtn" class="oc-primary" style="margin:0; padding:6px 16px; font-size:12px;">💾 등록</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay hidden" id="officePanel">
     <div class="overlay-card office-card">
-      <div class="overlay-head">🏢 <span id="officeName">우리 회사</span> 사무실 <span class="cls-count" id="officeStatus">대기 중</span><button class="overlay-x" data-close="officePanel">✕</button></div>
+      <div class="overlay-head">🏢 <span id="officeName">우리 회사</span> 사무실 <span class="cls-count" id="officeStatus">대기 중</span><button class="code-mini" id="officeVoiceBtn" title="🎭 에이전트 음성 대화 — 자비스처럼 각자 목소리로 말해요">🔇</button><button class="code-mini" id="officePop" title="별도 창으로 띄우기 (옆에 놓고 보기)">🪟</button><button class="overlay-x" data-close="officePanel">✕</button></div>
       <div class="voffice" id="voffice"></div>
       <div class="confer-feed" id="conferFeed"></div>
       <div class="muted" style="text-align:center;font-size:11px">💬 동료를 클릭하면 상세 정보 · 큰 일을 맡기면 모였다가 → 자리로 걸어가 일하고 → 회의합니다</div>
@@ -232,7 +524,7 @@
       <div class="overlay-head">🧠 지식 네트워크 <span class="cls-count" id="brainCount"></span><button class="overlay-x" data-close="brainPanel">✕</button></div>
       <div class="manage-tabs">
         <button class="btab active" data-btab="short">⚡ 단기 기억</button>
-        <button class="btab" data-btab="long">🧬 장기 기억 <span class="beta">BETA</span></button>
+        <button class="btab" data-btab="long">🧬 장기 기억</button>
       </div>
       <!-- 단기 기억 = GitHub 동기화 -->
       <div class="bsec" id="bsec-short">
@@ -241,38 +533,123 @@
           <div class="mem-acts"><button id="ghPushBtn" class="oc-primary">⬆ 동기화</button><button id="ghPullBtn" class="oc-primary">⬇ 불러오기</button></div>
         </div>
         <div class="mem-status" id="ghStatus"></div>
-        <div class="oc-row">
-          <input id="brainInput" placeholder="에이전트에게 기억시킬 지식 (예: 내 채널 주제는 AI 교육이다)" autocomplete="off" />
-          <button id="brainAddBtn" class="oc-primary">+ 기억</button>
+        <!-- 🔌 에제르 브릿지 상태 — 주입이 안 보이는 이유를 알려줌 -->
+        <div class="bridge-row hidden" id="bridgeRow"></div>
+        <!-- 🧠 제이 브레인 링크 — 멘토 두뇌를 비번으로 받기(구독자). 게시(대장)는 스크립트로 처리. -->
+        <div class="mentor-bar">
+          <div class="mentor-title">🧠 <b>제이 브레인 링크</b> <span class="muted">멘토 두뇌 가져오기</span></div>
+          <div class="mentor-form">
+            <input id="mentorRepo" placeholder="멘토 레포 (예: wonseokjung/memory)" autocomplete="off" />
+            <input id="mentorPw" type="password" placeholder="비밀번호" autocomplete="off" />
+            <button id="mentorLinkBtn" class="oc-primary">📥 받기</button>
+          </div>
         </div>
+        <div class="mem-status" id="mentorStatus"></div>
+        <!-- 📊 분야별 두뇌 성장 — "어떻게 쌓이는지"가 눈에 보이는 곳 -->
+        <div class="cat-growth" id="catGrowth"></div>
         <div id="brainGraph" class="brain-graph"></div>
-        <div class="muted" style="font-size:11px;text-align:center">노드 = 지식 · 선 = 의미 연결 · 끌어서 움직임 · GitHub 레포에 버전관리로 동기화 (토큰/레포는 🗂️ 연동에서)</div>
-        <div class="brain-notes" id="brainNotes"></div>
+        <div class="graph-cap"><span class="muted">노드 = 지식 · 선 = 연결 · 색 = 분야</span><button id="notesToggle" class="notes-toggle">🗂️ 목록·정리</button></div>
+        <div class="brain-notes hidden" id="brainNotes"></div>
       </div>
-      <!-- 장기 기억 = HuggingFace 학습 -->
+      <!-- 장기 기억 = HuggingFace 학습 (단기 → 장기 변환 흐름) -->
       <div class="bsec hidden" id="bsec-long">
-        <div class="muted" style="font-size:12px;line-height:1.6">🧬 <b>장기 기억 = HuggingFace</b> — 쌓인 지식을 <b>데이터셋으로 올리고 모델에 파인튜닝</b>해서 가중치에 체득시킵니다. 단기가 "메모"라면 장기는 "몸에 밴" 지식. 학습된 모델은 설정에서 회사 뇌로 지정.</div>
-        <div class="mem-bar">
-          <div class="mem-info">🧬 데이터셋 <span class="mem-repo" id="hfRepo">미연결</span></div>
-          <div class="mem-acts"><button id="hfUploadBtn" class="oc-primary">🤗 업로드</button><button id="hfTrainBtn" class="oc-primary">🚀 학습 시작 (Colab)</button><button id="hfExportBtn" class="oc-primary">📦 로컬 JSONL</button></div>
+        <div class="muted" style="font-size:12px;line-height:1.6">🧬 <b>단기(메모) → 장기(몸에 밴 지식).</b> 쌓인 단기 지식을 <b>데이터셋으로 바꿔 내 모델에 파인튜닝</b>합니다.</div>
+        <!-- 🎓 학습 방식 -->
+        <div class="method-pick" id="methodPick"></div>
+        <div class="method-card" id="methodCard"></div>
+        <!-- 흐름: ①변환/생성 ②업로드 ③학습 (방식별 분기) -->
+        <div id="sftFlow">
+        <div class="long-flow">
+          <div class="lf-src">⚡ 단기 지식 <b id="longShortCount">0</b>개 <span class="muted">— 이걸 장기 기억으로 각인합니다</span></div>
+          <div class="lf-arrow">↓</div>
+
+          <!-- ① 변환/생성 -->
+          <div class="lf-step" id="lfStep1">
+            <span class="lf-num">1</span>
+            <div class="lf-body"><b id="step1Title">📦 학습 데이터로 변환</b><div class="muted small" id="step1Sub">지식 → AI가 Q&amp;A 문제로 자동 출제</div>
+              <label class="aug-toggle" id="augToggle"><input type="checkbox" id="augChk" /> 🔬 다양하게 (증강 · echo 방지)</label>
+            </div>
+            <button id="dsConvertBtn" class="oc-primary">변환</button>
+          </div>
+          <div class="ds-prog hidden" id="dsProg">
+            <div class="ds-bar"><div class="ds-fill" id="dsFill"></div></div>
+            <div class="ds-cnt" id="dsCnt"></div>
+            <div class="ds-preview" id="dsPreview"></div>
+          </div>
+
+          <div class="lf-arrow">↓</div>
+          <!-- ② 업로드 -->
+          <div class="lf-step lf-locked" id="lfStep2">
+            <span class="lf-num">2</span>
+            <div class="lf-body"><b>🤗 HuggingFace 업로드 <span class="beta" style="background:rgba(150,150,150,.22)">선택</span></b><div class="muted small">내 HF 계정에 데이터셋 보관용 <span class="mem-repo" id="hfRepo">미연결</span> · <b style="color:#74ffb4">서버 학습은 이 단계 없이 바로 가능</b></div></div>
+            <button id="hfUploadBtn" class="oc-primary" disabled>업로드</button>
+          </div>
+
+          <div class="lf-arrow">↓</div>
+          <!-- ③ 모델 이름 + 학습 설정 -->
+          <div class="lf-step lf-locked" id="lfStep3">
+            <span class="lf-num">3</span>
+            <div class="lf-body"><b>🧠 모델 이름 정하고 학습</b>
+              <input id="modelNameInput" class="ds-name" placeholder="내두뇌-v1" disabled />
+              <div class="train-set">
+                <div class="ts-row"><span class="ts-lab">학습 강도</span>
+                  <div class="ts-presets">
+                    <button class="ts-preset" data-preset="safe">🛡️ 안전</button>
+                    <button class="ts-preset on" data-preset="balanced">⚖️ 기본</button>
+                    <button class="ts-preset" data-preset="strong">🔥 강하게</button>
+                  </div>
+                </div>
+                <div class="ts-hint" id="tsHint">⚖️ 기본 — 학습·과적합 균형 (권장 · lr 3e-4)</div>
+                <details class="ts-adv">
+                  <summary>🎓 전문가 설정 (파라미터 직접 조정 · 배우면서)</summary>
+                  <div class="ts-f"><span class="ts-k">LoRA rank (r)<i>학습 용량. 클수록 많이 외움(메모리↑). 페르소나엔 8~16 충분</i></span>
+                    <select id="tsRank"><option value="8">8 · 가벼움</option><option value="16" selected>16 · 권장</option><option value="32">32 · 깊게</option><option value="64">64 · 대용량</option></select></div>
+                  <div class="ts-f"><span class="ts-k">lora_alpha<i>학습 강도. 보통 rank의 2배가 정석</i></span>
+                    <select id="tsAlpha"><option value="auto" selected>자동(r×2)</option><option value="16">16</option><option value="32">32</option><option value="64">64</option></select></div>
+                  <div class="ts-f"><span class="ts-k">lora_dropout<i>과적합 방지. 데이터 적으면 0, 많으면 0.05~0.1</i></span>
+                    <select id="tsDropout"><option value="0" selected>0 · 없음</option><option value="0.05">0.05</option><option value="0.1">0.1</option></select></div>
+                  <div class="ts-f"><span class="ts-k">learning_rate<i>학습 속도. 크면 빨리 배우나 망가지기 쉬움</i></span>
+                    <select id="tsLr"><option value="" selected>강도 프리셋 따름</option><option value="0.0002">2e-4 · 안전</option><option value="0.0003">3e-4 · 권장</option><option value="0.0005">5e-4 · 강함</option></select></div>
+                  <div class="ts-f"><span class="ts-k">epochs<i>같은 데이터 반복 횟수. 많으면 외우다 과적합</i></span>
+                    <select id="tsEpochs"><option value="">프리셋 따름</option><option value="6">6 · 적게</option><option value="8" selected>8 · 권장</option><option value="10">10 · 많이</option></select></div>
+                  <div class="ts-f"><span class="ts-k">max_seq_length<i>한 번에 보는 토큰 길이. 길수록 메모리 제곱 증가</i></span>
+                    <select id="tsSeq"><option value="512">512 · 가벼움</option><option value="1024" selected>1024 · 권장</option><option value="2048">2048 · 긴 문맥</option></select></div>
+                  <div class="ts-f"><span class="ts-k">lr_scheduler<i>학습률 감소 곡선. cosine이 후반 더 부드러움</i></span>
+                    <select id="tsSched"><option value="linear" selected>linear</option><option value="cosine">cosine</option></select></div>
+                  <div class="ts-f"><span class="ts-k">양자화 (quant)<i>모델 크기·속도. q4_k_m이 균형 최고</i></span>
+                    <select id="tsQuant"><option value="q4_k_m" selected>q4_k_m · 빠름(권장)</option><option value="q8_0">q8_0 · 고품질</option><option value="f16">f16 · 원본</option></select></div>
+                  <div class="ts-f"><span class="ts-k">max_steps<i>총 학습 횟수. 0이면 데이터수·epochs로 자동</i></span>
+                    <input id="tsSteps" type="number" value="0" min="0" max="300" /></div>
+                </details>
+              </div>
+              <div class="muted small" style="margin-top:6px">내 모델 위에 누적 학습 → .gguf 모델</div>
+              <div class="train-acts">
+                <input id="cloudCode" class="ws-input" style="width:110px;flex:0 0 auto" placeholder="멤버십 코드" maxlength="8" autocomplete="off"/>
+                <button id="cloudTrainBtn" class="train-cloud" title="AXIOS CLI 서버에서 학습 — HF토큰·코랩 불필요 (멤버 전용·월 1회 무료)"><span>🚀 서버에서 바로 학습</span><span class="beta-pill">무료·토큰 불필요</span></button>
+                <button id="hfTrainBtn" class="train-free" disabled>🆓 Colab으로 직접 학습</button>
+              </div>
+              <div class="mem-status" id="cloudTrainStatus" style="display:none;margin-top:8px"></div>
+            </div>
+          </div>
         </div>
+        </div><!-- /#sftFlow -->
         <div class="mem-status" id="hfStatus"></div>
-        <ol class="muted small" style="line-height:1.7;padding-left:18px;margin:4px 0">
-          <li><b>🤗 업로드</b> — 지식을 HF 데이터셋으로 올림</li>
-          <li><b>🚀 학습 시작</b> — 미리 채운 Unsloth 노트북을 만들어 <b>Colab(무료 GPU)에서 원클릭</b>으로 엶 → "모두 실행"</li>
-          <li>나온 <code>.gguf</code> 모델을 LM Studio/Ollama에 올리고 ⚙️ 설정에서 선택 → <b>장기기억 완성</b></li>
-        </ol>
+        <div style="text-align:right;margin-top:4px"><button id="hfExportBtn" class="lf-ghost">📦 바탕화면 JSONL 보기</button></div>
       </div>
     </div>
   </div>
 
-  <!-- 🧠 매트릭스 지식 주입 FX -->
+  <!-- 🧠 매트릭스 브레인 인젝션 FX -->
   <div class="inject-fx hidden" id="injectFx">
     <canvas id="injectRain"></canvas>
     <div class="inject-hud">
-      <div class="ih-title">🧠 지식 주입 <span class="ih-en">KNOWLEDGE INJECTION</span></div>
+      <span class="ih-cnr tl"></span><span class="ih-cnr tr"></span><span class="ih-cnr bl"></span><span class="ih-cnr br"></span>
+      <span class="ih-scan"></span>
+      <div class="ih-core" id="ihCore"><span class="ih-ring"></span><span class="ih-ring r2"></span><span class="ih-hex"></span><span class="ih-brain">🧠</span></div>
+      <div class="ih-title" id="ihTitle">브레인 인젝션 <span class="ih-en">BRAIN&nbsp;INJECTION</span></div>
       <div class="ih-sub" id="ihSub">INITIALIZING…</div>
       <div class="ih-bar"><div class="ih-fill" id="ihFill"></div></div>
+      <div class="ih-log" id="ihLog"></div>
       <div class="ih-text" id="ihText"></div>
     </div>
   </div>

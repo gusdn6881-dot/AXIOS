@@ -34,7 +34,8 @@ export const stripTools = (text: string) =>
   text.replace(/<list_dir>[\s\S]*?<\/list_dir>/g, '').replace(/<read_file>[\s\S]*?<\/read_file>/g, '')
       .replace(/<write_file[\s\S]*?<\/write_file>/g, '').replace(/<run>[\s\S]*?<\/run>/g, '').replace(/<find>[\s\S]*?<\/find>/g, '')
       .replace(/<team>[\s\S]*?<\/team>/g, '').replace(/<task>[\s\S]*?<\/task>/g, '').replace(/<approve[^>]*>[\s\S]*?<\/approve>/g, '')
-      .replace(/<web_search>[\s\S]*?<\/web_search>/g, '').replace(/<fetch_url>[\s\S]*?<\/fetch_url>/g, '').replace(/<\/?revenue\s*\/?>/g, '').replace(/<\/?screenshot\s*\/?>/g, '').replace(/<\/?clipboard\s*\/?>/g, '').replace(/<open>[\s\S]*?<\/open>/g, '').trim();
+      .replace(/<web_search>[\s\S]*?<\/web_search>/g, '').replace(/<fetch_url>[\s\S]*?<\/fetch_url>/g, '').replace(/<\/?revenue\s*\/?>/g, '').replace(/<\/?screenshot\s*\/?>/g, '').replace(/<\/?clipboard\s*\/?>/g, '').replace(/<open>[\s\S]*?<\/open>/g, '')
+      .replace(/<youtube_channel_data>[\s\S]*?<\/youtube_channel_data>/g, '').trim();
 
 // 🔎 이름으로 파일 검색 — 바탕화면·문서·다운로드·동영상·음악·사진(+작업폴더) 재귀(깊이4).
 function findFiles(query: string, workspace: string): ToolResult {
@@ -112,6 +113,7 @@ export function toolGuide(workspace: string): string {
     `- 웹 검색(최신 정보·리서치): <web_search>검색어</web_search>`,
     `- 웹페이지 읽기: <fetch_url>https://주소</fetch_url>`,
     `- 💰 내 매출/수익 확인 (PayPal 실데이터 — 파일 찾지 말고 반드시 이 도구!): <revenue></revenue>`,
+    `- 📺 유튜브 채널 및 최신 댓글 분석 (API Key & Channel ID 연동 필요): <youtube_channel_data></youtube_channel_data>`,
     `- 👁️ 내 화면 보기 (사장님 화면을 실제로 캡처해서 본다 — "화면 봐줘/이거 뭐야/이 에러"): <screenshot></screenshot>`,
     `- 📋 클립보드 읽기 (사장님이 방금 복사한 것): <clipboard></clipboard>`,
     `- 기억하기(두뇌에 영구 저장): <remember>저장할 지식 한 줄</remember>`,

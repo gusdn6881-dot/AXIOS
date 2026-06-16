@@ -47,3 +47,12 @@ assets/pixel/characters/Modern_Office_Revamped_v1/**
 assets/pixel/characters/moderninteriors-win/**
 
 desktop/**
+
+# Local models, tools, installers, and temp extractions
+*.gguf
+*.zip
+*.exe
+*.py
+Modelfile*
+connect-ai-src-extracted/**
+connect-ai-temp-extracted/**

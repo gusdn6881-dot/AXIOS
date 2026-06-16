@@ -1,6 +1,6 @@
 {
   "name": "axios-cli",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "AXIOS CLI — 자비스 같은 1인 기업 AI 비서 (데스크톱 앱, 비개발자용)",
   "main": "out/main.js",
   "author": "Axios AI Lab",
@@ -21,7 +21,10 @@
     "axios": "^1.7.0",
     "electron-updater": "^6.8.9",
     "msedge-tts": "^2.0.5",
-    "nodemailer": "^8.0.10"
+    "nodemailer": "^8.0.10",
+    "imapflow": "^1.3.7",
+    "mailparser": "^3.9.9",
+    "node-llama-cpp": "^3.18.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -40,6 +43,7 @@
       "out/**",
       "src/renderer/**",
       "assets/**",
+      "scripts/**",
       "package.json"
     ],
     "publish": [
@@ -78,8 +82,8 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
       "artifactName": "AXIOS-CLI-${version}-win-x64-Setup.exe"
     }
   }

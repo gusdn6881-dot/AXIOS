@@ -8,6 +8,8 @@ import { addTask } from './tasks';
 import { addApproval } from './approvals';
 import { listMcpTools, callMcpTool } from './mcp';
 import { webSearch, fetchUrl } from './web';
+import { fetchChannel, fetchChannelComments } from './youtube';
+
 
 export interface ChatTurn { role: 'user' | 'assistant'; content: string; }
 
@@ -23,8 +25,9 @@ export type EngineEvent =
   | { kind: 'final'; text: string }
   | { kind: 'error'; text: string };
 
-export interface RunOpts { company: string; agentName?: string; userTitle?: string; workspace?: string; servicesInfo?: string; target?: Partial<LlmTarget>; signal?: AbortSignal; realtimeFor?: (agentId: string) => Promise<string>; getRevenue?: () => Promise<string>; captureScreen?: () => Promise<string | null>; readClipboard?: () => Promise<string>; openPath?: (p: string) => Promise<string>; }
+export interface RunOpts { company: string; agentName?: string; userTitle?: string; workspace?: string; servicesInfo?: string; target?: Partial<LlmTarget>; signal?: AbortSignal; realtimeFor?: (agentId: string) => Promise<string>; getRevenue?: () => Promise<string>; captureScreen?: () => Promise<string | null>; readClipboard?: () => Promise<string>; openPath?: (p: string) => Promise<string>; youtubeKey?: string; youtubeChannel?: string; }
 const aborted = (opts: { signal?: AbortSignal }) => !!opts.signal?.aborted;
+
 
 // 🛠️ 도구 쓰는 에이전트 — 파일 읽기/목록/쓰기를 직접 하고, 결과 보고 이어간다.
 export async function agentWithTools(history: ChatTurn[], userText: string, opts: RunOpts, onEvent: (e: EngineEvent) => void): Promise<string> {
@@ -82,21 +85,59 @@ export async function agentWithTools(history: ChatTurn[], userText: string, opts
     cleaned = cleaned.replace(/<team>[\s\S]*?<\/team>/g, '');
     // 🔌 MCP 도구 호출 감지
     const mcpCalls = [...cleaned.matchAll(/<mcp\s+server="([^"]+)"\s+tool="([^"]+)"\s*>([\s\S]*?)<\/mcp>/g)].map(m => ({ server: m[1], tool: m[2], args: m[3].trim() }));
-    // 🌐 웹 + 💰 매출 + 👁️ 화면 + 📋 클립보드 도구 감지
+    // 🌐 웹 + 💰 매출 + 👁️ 화면 + 📋 클립보드 + 📺 유튜브 도구 감지
     const hasWeb = /<web_search>|<fetch_url>/.test(cleaned);
     const wantRevenue = /<revenue[\s>/]/.test(cleaned);
     const wantShot = /<screenshot\s*\/?>/.test(cleaned) || /<screenshot>/.test(cleaned);
     const wantClip = /<clipboard\s*\/?>/.test(cleaned) || /<clipboard>/.test(cleaned);
+    const wantYoutube = /<youtube_channel_data[\s>/]/.test(cleaned) || /<youtube_channel_data>/.test(cleaned);
     const opens = [...cleaned.matchAll(/<open>([\s\S]*?)<\/open>/g)].map(m => m[1].trim()).filter(Boolean);
     cleaned = cleaned.replace(/<mcp\s+[^>]*>[\s\S]*?<\/mcp>/g, '');
     const calls = parseTools(cleaned);
-    if (!teamBriefs.length && !calls.length && !mcpCalls.length && !hasWeb && !wantRevenue && !wantShot && !wantClip && !opens.length) { finalText = stripTools(cleaned).trim(); onEvent({ kind: 'final', text: finalText }); return finalText; }
+    if (!teamBriefs.length && !calls.length && !mcpCalls.length && !hasWeb && !wantRevenue && !wantShot && !wantClip && !opens.length && !wantYoutube) { finalText = stripTools(cleaned).trim(); onEvent({ kind: 'final', text: finalText }); return finalText; }
     messages.push({ role: 'assistant', content: raw });
     const results: string[] = [];
     if (hasWeb) { const web = await execWebTools(raw, onEvent); results.push(...web.results); }
     for (const op of opens) { if (!opts.openPath) break; onEvent({ kind: 'status', text: `🚀 여는 중 · ${op.slice(0, 40)}` }); const r = await opts.openPath(op).catch((e: any) => `열기 실패: ${e?.message || e}`); onEvent({ kind: 'tool', name: 'open', path: op.slice(0, 40), ok: !/실패/.test(r) }); results.push(`[열기: ${op}]\n${r}`); }
     if (wantRevenue && opts.getRevenue) { onEvent({ kind: 'status', text: '💰 매출 확인 중…' }); const rev = await opts.getRevenue().catch(() => ''); onEvent({ kind: 'tool', name: 'revenue', path: 'PayPal', ok: true }); results.push(`[내 매출 (PayPal 실데이터)]\n${rev}`); }
     if (wantClip && opts.readClipboard) { onEvent({ kind: 'status', text: '📋 클립보드 확인…' }); const clip = await opts.readClipboard().catch(() => ''); onEvent({ kind: 'tool', name: 'clipboard', path: '복사한 내용', ok: true }); results.push(`[클립보드(사장님이 복사한 것)]\n${(clip || '(비어 있음)').slice(0, 4000)}`); }
+    if (wantYoutube) {
+      onEvent({ kind: 'status', text: '📺 유튜브 데이터 및 댓글 분석 중…' });
+      const key = opts.youtubeKey || '';
+      const chId = opts.youtubeChannel || '';
+      if (!key || !chId) {
+        onEvent({ kind: 'tool', name: 'youtube', path: '채널 데이터', ok: false });
+        results.push('[유튜브 API Key 또는 Channel ID가 설정되지 않았습니다. ⚙️ 설정 -> 고급 -> YouTube 연동을 먼저 진행해주세요.]');
+      } else {
+        try {
+          const chData = await fetchChannel(key, chId);
+          const commentsData = await fetchChannelComments(key, chId);
+          onEvent({ kind: 'tool', name: 'youtube', path: '채널 및 댓글', ok: chData.ok && commentsData.ok });
+          
+          let out = '';
+          if (chData.ok && chData.channel) {
+            out += `[유튜브 채널 정보]\n- 제목: ${chData.channel.title}\n- 구독자 수: ${chData.channel.subs}명\n- 총 조회수: ${chData.channel.views}회\n- 총 영상수: ${chData.channel.videos}개\n\n`;
+            if (chData.videos && chData.videos.length) {
+              out += `[최근 업로드 영상 목록]\n` + chData.videos.map((v: any) => `- ${v.title} (조회수: ${v.views}회, 좋아요: ${v.likes}개, 댓글: ${v.comments}개)`).join('\n') + '\n\n';
+            }
+          } else {
+            out += `[유튜브 채널 정보 가져오기 실패]: ${chData.error || '알 수 없는 오류'}\n`;
+          }
+
+          if (commentsData.ok && commentsData.comments) {
+            out += `[최근 댓글 목록]\n` + commentsData.comments.map((c: any) => `- 작성자: ${c.author}\n  내용: ${c.text}\n  좋아요: ${c.likeCount}개\n  작성일시: ${c.publishedAt}`).join('\n') + '\n';
+          } else {
+            out += `[유튜브 최신 댓글 가져오기 실패]: ${commentsData.error || '알 수 없는 오류'}\n`;
+          }
+
+          results.push(out);
+        } catch (err: any) {
+          onEvent({ kind: 'tool', name: 'youtube', path: '채널 및 댓글', ok: false });
+          results.push(`[유튜브 연동 오류]: ${err.message}`);
+        }
+      }
+    }
+
     // 👁️ 화면 캡처 — 비전 메시지로 추가
     let shot: string | null = null;
     if (wantShot && opts.captureScreen) {

@@ -29,37 +29,56 @@ export interface PlazaPresence {
 }
 
 let _dbUrl = (process.env.PLAZA_DB_URL || '').replace(/\/$/, '');
+let _idToken = '';
+
 export function setPlazaDbUrl(url: string) { _dbUrl = (url || '').replace(/\/$/, ''); }
+export function setPlazaAuthToken(token: string) { _idToken = token; }
+
 export function plazaConfigured(): boolean {
   return _dbUrl.startsWith('https://') && !_dbUrl.includes('REPLACE-ME');
 }
-const sub = (s: string) => `${_dbUrl}/plaza/rooms/${ROOM}/${s}.json`;
+
+const sub = (s: string) => {
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+  return `${_dbUrl}/plaza/rooms/${ROOM}/${s}.json${authSuffix}`;
+};
 
 // ─────────────────────────────────────── 발화 / 프레즌스
 export async function postPlazaMessage(m: Omit<PlazaMessage, 'ts'>): Promise<void> {
   if (!plazaConfigured()) throw new Error('Plaza DB URL 미설정');
-  await axios.post(sub('messages'), { ...m, ts: Date.now() }, { timeout: 8000 });
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+  await axios.post(`${_dbUrl}/plaza/rooms/${ROOM}/messages.json${authSuffix}`, { ...m, ts: Date.now() }, { timeout: 8000 });
 }
 export async function putPresence(p: Omit<PlazaPresence, 'ts'>): Promise<void> {
   if (!plazaConfigured()) return;
-  await axios.put(sub(`presence/${p.uid}`), { ...p, ts: Date.now() }, { timeout: 8000 }).catch(() => {});
+  const now = Date.now();
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+  // 1. Put in lobby presence
+  await axios.put(sub(`presence/${p.uid}`), { ...p, ts: now }, { timeout: 8000 }).catch(() => {});
+  // 2. Put in /plaza/users
+  await axios.put(`${_dbUrl}/plaza/users/${p.uid}.json${authSuffix}`, { ...p, ts: now }, { timeout: 8000 }).catch(() => {});
 }
 export async function deletePresence(uid: string): Promise<void> {
   if (!plazaConfigured()) return;
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
   await axios.delete(sub(`presence/${uid}`), { timeout: 8000 }).catch(() => {});
+  await axios.delete(`${_dbUrl}/plaza/users/${uid}.json${authSuffix}`, { timeout: 8000 }).catch(() => {});
 }
 export async function fetchPresence(): Promise<PlazaPresence[]> {
   if (!plazaConfigured()) return [];
-  const r = await axios.get(sub('presence'), { timeout: 8000 }).catch(() => null);
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+  const r = await axios.get(`${_dbUrl}/plaza/users.json${authSuffix}`, { timeout: 8000 }).catch(() => null);
   const now = Date.now();
-  return Object.values((r?.data as Record<string, PlazaPresence>) || {})
+  const rawData = r?.data || {};
+  return Object.values(rawData as Record<string, PlazaPresence>)
     .filter((p) => p && now - p.ts < 60000);
 }
 
 // 광장의 최근 대화 전체 (시간순). 에이전트가 맥락 보고 끼어들 때 사용.
 export async function fetchMessages(): Promise<PlazaMessage[]> {
   if (!plazaConfigured()) return [];
-  const r = await axios.get(sub('messages'), { timeout: 8000 }).catch(() => null);
+  const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+  const r = await axios.get(`${_dbUrl}/plaza/rooms/${ROOM}/messages.json${authSuffix}`, { timeout: 8000 }).catch(() => null);
   return Object.values((r?.data as Record<string, PlazaMessage>) || {})
     .filter((m) => m && typeof m.ts === 'number')
     .sort((a, b) => a.ts - b.ts);
@@ -76,14 +95,17 @@ export function joinPlaza(
 ): PlazaSession {
   let lastTs = Date.now();           // 입장 시점 이후 메시지만 처리(과거 폭주 방지)
   let stopped = false;
+  let polling = false;
 
   void putPresence(me);
   const hb = setInterval(() => { if (!stopped) void putPresence(me); }, 15000);
 
   const poll = setInterval(async () => {
-    if (stopped || !plazaConfigured()) return;
+    if (stopped || !plazaConfigured() || polling) return;
+    polling = true;
     try {
-      const r = await axios.get(sub('messages'), { timeout: 8000 });
+      const authSuffix = _idToken ? `?auth=${_idToken}` : '';
+      const r = await axios.get(`${_dbUrl}/plaza/rooms/${ROOM}/messages.json${authSuffix}`, { timeout: 8000 });
       const all = (r.data as Record<string, PlazaMessage>) || {};
       const fresh = Object.values(all)
         .filter((m) => m && m.ts > lastTs && m.uid !== me.uid)
@@ -92,7 +114,9 @@ export function joinPlaza(
         lastTs = fresh[fresh.length - 1].ts;
         for (const m of fresh) onPeerMessage(m);
       }
-    } catch { /* 일시 오류는 무시, 다음 틱에 재시도 */ }
+    } catch { /* 일시 오류는 무시, 다음 틱에 재시도 */ } finally {
+      polling = false;
+    }
   }, 3000);
 
   const stop = () => {

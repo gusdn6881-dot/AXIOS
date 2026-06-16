@@ -1,0 +1,13 @@
+# AI Agent Rules: Post-Task Compile and Packaging for Axios AI
+
+Whenever any code changes, feature additions, or bug fixes are completed in this project, the AI agent MUST automatically run the compilation and packaging commands in the terminal without waiting for explicit instructions from the user.
+
+## Required Steps at Task Completion
+1. **Compile TypeScript Code:**
+   * Run `npm run compile` to verify that there are no compilation errors and that the latest code is bundled into `out/extension.js`.
+2. **Package the Extension:**
+   * Run `npx @vscode/vsce package` to bundle the extension and assets into the `.vsix` file.
+3. **Verify Generation:**
+   * Check that the compilation finishes successfully and the `.vsix` file is successfully generated in the project root.
+4. **Notify User:**
+   * Report the build results and remind the user to reload the window/re-install the `.vsix` to apply changes.

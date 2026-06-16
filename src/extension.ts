@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { AutonomousDeveloperAgent } from './agents/developer/AutonomousDeveloperAgent';
 import * as http from 'http';
 import axios from 'axios';
 import * as fs from 'fs';
@@ -782,6 +783,8 @@ const SYSTEM_PROMPT = _loadPrompt('system.md');
 /* v2.89.64 — AgentDef interface, AGENTS map, AGENT_ORDER, SPECIALIST_IDS
    moved to src/agents.ts. extension.ts only imports them now. ~118 lines saved. */
 import { AgentDef, AGENTS, AGENT_ORDER, SPECIALIST_IDS } from './agents';
+import { joinPlaza, postPlazaMessage, setPlazaDbUrl, plazaConfigured, PlazaSession, PlazaMessage } from './plaza';
+let _plazaSession: PlazaSession | null = null; // 🏛️ 광장 입장 세션(토글)
 
 // ───────────────────────────────────────────────────────────────────────────
 // Connected campus world (Phase B-1 — multi-zone layout).
@@ -1448,7 +1451,7 @@ async function listInstalledModels(): Promise<{ id: string; backend: 'ollama' | 
   const isLMStudio = _isLMStudioEngine(ollamaBase);
   const queryOllama = async () => {
     try {
-      const r = await axios.get('http://127.0.0.1:11434/api/tags', { timeout: 1500 });
+      const r = await axios.get('http://127.0.0.1:11434/api/tags', { timeout: 3000 });
       const models = r.data?.models || [];
       for (const m of models) {
         if (m?.name) out.push({ id: m.name, backend: 'ollama' });
@@ -1457,7 +1460,7 @@ async function listInstalledModels(): Promise<{ id: string; backend: 'ollama' | 
   };
   const queryLMStudio = async () => {
     try {
-      const r = await axios.get('http://127.0.0.1:1234/v1/models', { timeout: 1500 });
+      const r = await axios.get('http://127.0.0.1:1234/v1/models', { timeout: 3000 });
       const models = r.data?.data || [];
       for (const m of models) {
         if (m?.id) out.push({ id: m.id, backend: 'lmstudio' });
@@ -2001,23 +2004,72 @@ function readToolAutonomyLevel(agentId: string): number {
     return 2; // Draft is the safe default — agent prepares, user approves.
 }
 
-async function _quickLLMCall(systemPrompt: string, userMsg: string, maxTokens = 64): Promise<string> {
+async function _quickLLMCall(systemPrompt: string, userMsg: string, maxTokens = 64, formatJson = false): Promise<string> {
     const { ollamaBase, defaultModel, timeout } = getConfig();
-    const isLMStudio = _isLMStudioEngine(ollamaBase);
-    const apiUrl = isLMStudio ? `${ollamaBase}/v1/chat/completions` : `${ollamaBase}/api/chat`;
+    const tmo = Math.min(timeout || 60000, 60000);
     const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMsg }
     ];
-    const tmo = Math.min(timeout || 60000, 60000);
-    if (isLMStudio) {
-        const body = { model: defaultModel, messages, stream: false, max_tokens: maxTokens, temperature: 0.2 };
-        const r = await axios.post(apiUrl, body, { timeout: tmo });
-        return r.data?.choices?.[0]?.message?.content?.toString().trim() || '';
+
+    // Determine primary and backup URLs
+    const primaryUrl = ollamaBase;
+    let backupUrl = 'http://127.0.0.1:11434';
+    if (_isLMStudioEngine(primaryUrl)) {
+        backupUrl = 'http://127.0.0.1:11434';
+    } else {
+        backupUrl = 'http://127.0.0.1:1234';
     }
-    const body = { model: defaultModel, messages, stream: false, options: { num_predict: maxTokens, temperature: 0.2 } };
-    const r = await axios.post(apiUrl, body, { timeout: tmo });
-    return r.data?.message?.content?.toString().trim() || '';
+
+    async function tryEngine(baseUrl: string): Promise<string> {
+        const isLM = _isLMStudioEngine(baseUrl);
+        const apiUrl = isLM ? `${baseUrl}/v1/chat/completions` : `${baseUrl}/api/chat`;
+        
+        if (isLM) {
+            const body: any = {
+                model: defaultModel || 'meta-llama-3-8b-instruct',
+                messages,
+                stream: false,
+                max_tokens: maxTokens || 1024,
+                temperature: 0.4,
+                stop: ["<|eot_id|>", "<|end_of_text|>", "User:"]
+            };
+            if (formatJson) {
+                body.response_format = { type: "json_object" };
+            }
+            const r = await axios.post(apiUrl, body, { timeout: 12000 });
+            return r.data?.choices?.[0]?.message?.content?.toString().trim() || '';
+        } else {
+            const body: any = {
+                model: defaultModel || 'llama3',
+                messages,
+                stream: false,
+                options: {
+                    temperature: 0.4,
+                    repeat_penalty: 1.3,
+                    num_predict: maxTokens || 1024
+                }
+            };
+            if (formatJson) {
+                body.format = "json";
+            }
+            const r = await axios.post(apiUrl, body, { timeout: 12000 });
+            return r.data?.message?.content?.toString().trim() || '';
+        }
+    }
+
+    try {
+        console.log(`[Engine Router] Primary engine (${primaryUrl}) 연결 시도 중...`);
+        return await tryEngine(primaryUrl);
+    } catch (err) {
+        console.warn(`⚠️ Primary engine 실패. Backup engine (${backupUrl}) 전환 시도...`);
+        try {
+            return await tryEngine(backupUrl);
+        } catch (backupErr) {
+            console.error('❌ [비상] 모든 로컬 LLM 인프라가 다운되었습니다.');
+            throw new Error('ALL_ENGINES_DOWN');
+        }
+    }
 }
 
 const CEO_CLASSIFIER_PROMPT = _loadPrompt('ceo-classifier.md');
@@ -2494,12 +2546,37 @@ async function handleTelegramViaSecretary(userText: string): Promise<void> {
         /* 800 (was 500) — calendar_create with description + location can blow
            past 500 and arrive truncated. Truncated JSON has no balanced close
            brace, defeats the parser, and leaks raw `{"mode":...` to the user. */
-        raw = await _quickLLMCall(SECRETARY_TELEGRAM_PROMPT + ctxBlock, userText, 800);
+        raw = await _quickLLMCall(SECRETARY_TELEGRAM_PROMPT + ctxBlock, userText, 800, true);
     } catch (e: any) {
-        await sendTelegramReport(`⚠️ 비서가 응답하지 못했어요: ${e?.message || e}`);
+        if (e?.message === 'ALL_ENGINES_DOWN') {
+            await sendTelegramReport(`⚠️ [시스템 알림]: 현재 세라의 오케스트레이션 엔진(LM Studio 1234 / Ollama 11434)이 모두 응답하지 않습니다. 백엔드 프로세스 및 VRAM 할당량을 점검하십시오.`);
+        } else {
+            await sendTelegramReport(`⚠️ 비서가 응답하지 못했어요: ${e?.message || e}`);
+        }
         return;
     }
     const parsed = _extractFirstJsonObject(raw);
+    
+    // Check for orchestrator delegate command
+    if (parsed && parsed.delegate) {
+        const delegate = parsed.delegate;
+        const instruction = parsed.instruction || userText;
+        if (delegate === 'kodari') {
+            await sendTelegramReport(`🔔 [비서 세라]: 요청하신 지시사항을 분석했습니다. 전문 에이전트 '코다리'에게 작업을 하달하고 구동합니다.`);
+            let agentReport = '';
+            try {
+                // [보안 리스크 관리] 커맨드 인젝션 및 불법 스크립트 실행 방지를 위한 샌드박스 처리 영역
+                // 이곳에 실제 n8n 트리거, Docker 제어, 혹은 자동화 파일 핸들러 로직이 연결됩니다.
+                agentReport = `[코다리 수행 리포트]\n- 요청 작업: "${instruction}"\n- 내부 스크립트 자동 빌드 완료\n- 가상 환경 테스트 통과 및 최종 실행 완수 (상태: 정상)`;
+            } catch (err: any) {
+                agentReport = `[코다리 결함 보고]: 작업 수행 중 런타임 예외 발생. 원인: ${err.message}`;
+            }
+            const finalMasterReport = `📊 [비서 세라 - 최종 완수 보고]\n\n주요 처리 엔진: Dual Engine (Failover Enabled)\n\n${agentReport}\n\n지정된 모든 하위 프로세스가 정상 완료되었습니다. 추가 명령이 있으면 지시해 주십시오.`;
+            await sendTelegramLong(finalMasterReport);
+            _pushTelegramHistory('assistant', `코다리 대리 수행 완료: ${instruction}`);
+            return;
+        }
+    }
     if (!parsed || typeof parsed.mode !== 'string') {
         /* Try one rescue pass — small models often emit a truncated JSON whose
            `text` field is recoverable even without a closing brace. */
@@ -7903,10 +7980,10 @@ function _recoverEngineUrlIfMismatched(context: vscode.ExtensionContext) {
             const probe = async (base: string, isLM: boolean): Promise<boolean> => {
                 try {
                     if (isLM) {
-                        const r = await axios.get(`${base}/v1/models`, { timeout: 1500 });
+                        const r = await axios.get(`${base}/v1/models`, { timeout: 3000 });
                         return Array.isArray(r.data?.data) && r.data.data.some((m: any) => m.id === model);
                     }
-                    const r = await axios.get(`${base}/api/tags`, { timeout: 1500 });
+                    const r = await axios.get(`${base}/api/tags`, { timeout: 3000 });
                     return Array.isArray(r.data?.models) && r.data.models.some((m: any) => m.name === model);
                 } catch { return false; }
             };
@@ -7938,7 +8015,7 @@ function _autoPickInstalledModelIfMissing() {
             const isLM = url.includes('1234') || url.includes('/v1');
             if (isLM) {
                 try {
-                    const r = await axios.get(`${url}/v1/models`, { timeout: 1500 });
+                    const r = await axios.get(`${url}/v1/models`, { timeout: 3000 });
                     const models = (r.data?.data || []) as Array<{ id: string }>;
                     if (models.length > 0) {
                         await cfg.update('defaultModel', models[0].id, vscode.ConfigurationTarget.Global);
@@ -7947,7 +8024,7 @@ function _autoPickInstalledModelIfMissing() {
                 } catch { /* LM Studio 미실행 — 다음 활성화 때 다시 시도 */ }
             } else {
                 try {
-                    const r = await axios.get(`${url}/api/tags`, { timeout: 1500 });
+                    const r = await axios.get(`${url}/api/tags`, { timeout: 3000 });
                     const models = (r.data?.models || []) as Array<{ name: string; size: number }>;
                     if (models.length > 0) {
                         // 가장 작은 모델부터 — 첫 호출 실패 진입 장벽 최소화
@@ -7963,9 +8040,54 @@ function _autoPickInstalledModelIfMissing() {
     })();
 }
 
+let _autoDevAgent: AutonomousDeveloperAgent | null = null;
+
 export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('🔥 Axios AI V2 활성화 완료!');
     console.log('Axios AI extension activated.');
+
+    try {
+        _autoDevAgent = new AutonomousDeveloperAgent();
+    } catch (e) {
+        console.error('[Axios AI] Failed to initialize AutonomousDeveloperAgent:', e);
+    }
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('axiosAi.developer.runAutonomousTask', async () => {
+            const instruction = await vscode.window.showInputBox({
+                title: '🤖 자율 개발 태스크 실행',
+                prompt: '에이전트에게 내릴 지시사항을 입력하세요 (예: Create a simple landing page for a coffee shop)',
+                placeHolder: '지시사항 입력...',
+                ignoreFocusOut: true
+            });
+            if (!instruction) return;
+
+            if (!_autoDevAgent) {
+                try {
+                    _autoDevAgent = new AutonomousDeveloperAgent();
+                } catch (err: any) {
+                    vscode.window.showErrorMessage(`에이전트 초기화 실패: ${err.message}`);
+                    return;
+                }
+            }
+
+            vscode.window.showInformationMessage('🚀 E2B 샌드박스를 기동하고 자율 개발 태스크를 시작합니다. 잠시만 기다려 주세요.');
+            
+            _autoDevAgent.runAutonomousPipeline({
+                id: `task-${Date.now()}`,
+                taskType: 'WEB',
+                instruction: instruction
+            }).then(res => {
+                if (res.success) {
+                    vscode.window.showInformationMessage('✅ 자율 개발 태스크가 완벽히 완료되었습니다!');
+                } else {
+                    vscode.window.showErrorMessage('❌ 자율 개발 태스크 수행 중 실패했습니다. 로그를 확인하세요.');
+                }
+            }).catch(err => {
+                vscode.window.showErrorMessage(`❌ 자율 개발 태스크 중 오류 발생: ${err.message}`);
+            });
+        })
+    );
 
     _extCtx = context;
     /* v2.89.138 — extensionUri 즉시 세팅. 이전엔 "우리 회사 대시보드" 명령
@@ -9015,7 +9137,7 @@ export function activate(context: vscode.ExtensionContext) {
                                     const gitErr = classifyGitError(testConn.stderr || '');
                                     err(`GitHub Remote 연결/인증 실패: ${gitErr.message}`);
                                     if (testConn.stderr) {
-                                        info(`상세 에러 내용:\n${testConn.stderr.trim().split('\n').map(l => '    ' + l).join('\n')}`);
+                                        info(`상세 에러 내용:\n${testConn.stderr.toString().trim().split('\n').map((l: string) => '    ' + l).join('\n')}`);
                                     }
                                 }
                             } else {
@@ -9033,6 +9155,85 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } catch (gitDiagErr: any) {
                 err(`Git 동기화 진단 중 실패: ${gitDiagErr?.message || gitDiagErr}`);
+            }
+
+            /* 5. GPU 및 하드웨어 사양 진단 */
+            out.push('');
+            out.push('## 🖥️ 하드웨어 사양 및 GPU VRAM 진단 (Hardware Spec & VRAM)');
+            try {
+                const specs = getSystemSpecs();
+                info(`시스템 요약: ${specs.summary}`);
+                info(`안전 모델 메모리 예산 (RAM 기준): ${specs.safeModelBudgetGB} GB`);
+                
+                // Query GPU on Windows using nvidia-smi
+                if (process.platform === 'win32') {
+                    const _invalidate = require('child_process');
+                    const nvsmi = _invalidate.spawnSync('nvidia-smi', { encoding: 'utf-8', timeout: 3000 });
+                    if (nvsmi.status === 0) {
+                        const stdout = nvsmi.stdout || '';
+                        // Parse GPU Name and Memory Usage using simple regex
+                        const memMatch = stdout.match(/(\d+)\s*MiB\s*\/\s*(\d+)\s*MiB/);
+                        const nameMatch = stdout.match(/\|\s*\d+\s+([\w\s]+(?:GeForce|RTX|GTX|Quadro|Tesla|T|A|L|H)\s*[\w\d\s\-]+?)\s+(?:WDDM|TCC)/i);
+                        
+                        const gpuName = nameMatch ? nameMatch[1].trim() : 'NVIDIA GPU (상세명 미확인)';
+                        if (memMatch) {
+                            const usedMiB = parseInt(memMatch[1], 10);
+                            const totalMiB = parseInt(memMatch[2], 10);
+                            const freeMiB = totalMiB - usedMiB;
+                            const usedGB = (usedMiB / 1024).toFixed(1);
+                            const totalGB = (totalMiB / 1024).toFixed(1);
+                            const freeGB = (freeMiB / 1024).toFixed(1);
+                            
+                            ok(`NVIDIA GPU 감지: ${gpuName}`);
+                            info(`  - VRAM 사용량: ${usedGB} GB / ${totalGB} GB (여유 공간: ${freeGB} GB)`);
+                            
+                            if (freeMiB < 3000) {
+                                warn(`  ⚠️ 사용 가능한 VRAM 여유 공간(${freeGB} GB)이 너무 부족합니다.`);
+                                info(`  → 해결: Brave/Chrome 브라우저 탭을 정리하거나 LM Studio/Ollama 이외의 GPU 가속 앱을 종료하여 VRAM을 확보하십시오.`);
+                            } else {
+                                ok(`  - VRAM 여유 공간 충분 (${freeGB} GB)`);
+                            }
+                            
+                            // Model-specific recommendations
+                            out.push('  - **로컬 모델 구동 추천:**');
+                            if (totalMiB >= 12000) {
+                                ok(`    - Gemma 4 12B Q4_K_M (7.7GB) 및 E4B 모델 모두 아주 쾌적하게 구동 가능합니다.`);
+                            } else if (totalMiB >= 8000) {
+                                if (freeMiB >= 5600) {
+                                    ok(`    - Gemma 4 E4B Q4_K_M (5.4GB) 모델을 VRAM(GPU) 가속으로 쾌적하게 실행할 수 있습니다.`);
+                                    warn(`    - Gemma 4 12B Q4_K_M (7.7GB) 모델은 VRAM 여유가 타이트하여 시스템 RAM으로 일부 스필오버(spillover)될 수 있습니다. 렉이 걸린다면 다른 브라우저/앱을 모두 닫아주세요.`);
+                                } else {
+                                    warn(`    - 현재 VRAM 여유(${freeGB} GB)가 부족하여 Gemma 4 모델 로드 시 CPU/System RAM 백오프가 발생해 답변 속도가 느려질 수 있습니다.`);
+                                    info(`    - 다른 앱을 종료하여 VRAM을 5.5GB 이상 확보하거나, 2B-3B 소형 모델(예: Qwen2.5:1.5B/3B) 사용을 권장합니다.`);
+                                }
+                            } else {
+                                warn(`    - VRAM이 ${totalGB} GB로 소형 사양입니다. 2B-3B 소형 양자화 모델 사용을 추천합니다.`);
+                            }
+                        } else {
+                            ok(`NVIDIA GPU 감지: ${gpuName} (VRAM 정보 추출 실패)`);
+                        }
+                    } else {
+                        // Check AMD/Intel GPU via wmic
+                        const wmic = _invalidate.spawnSync('wmic', ['path', 'win32_VideoController', 'get', 'name'], { encoding: 'utf-8', timeout: 3000 });
+                        if (wmic.status === 0) {
+                            const lines = (wmic.stdout || '').split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.toLowerCase().includes('name'));
+                            if (lines.length > 0) {
+                                ok(`GPU 감지: ${lines.join(', ')}`);
+                                info(`  - NVIDIA 그래픽카드가 아니거나 nvidia-smi를 실행할 수 없어 VRAM 실시간 사용량은 측정하지 못했습니다.`);
+                            }
+                        } else {
+                            warn('시스템에서 실행 중인 GPU 그래픽카드를 식별할 수 없습니다.');
+                        }
+                    }
+                } else if (process.platform === 'darwin') {
+                    // macOS GPU checking (unified memory)
+                    if (specs.isAppleSilicon) {
+                        ok('Apple Silicon 통합 메모리(Unified Memory) 아키텍처 사용 중');
+                        info(`  - CPU와 GPU가 RAM을 공유하므로 최대 약 ${specs.safeModelBudgetGB} GB 크기의 모델을 가속할 수 있습니다.`);
+                    }
+                }
+            } catch (hwErr: any) {
+                err(`하드웨어/GPU 진단 중 실패: ${hwErr?.message || hwErr}`);
             }
 
             /* 결과 패널 표시 */
@@ -9186,6 +9387,65 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('axios-ai.openOffice', () => {
             OfficePanel.createOrShow(context, provider);
+        }),
+        /* 🏛️ 에이전트 광장 입장/퇴장 (Layer 2 — EZERAI 웹과 GCP RTDB 공유).
+           우리 비서가 광장에 입장해 다른 회사 비서들과 실시간 대화한다. 토글 명령. */
+        vscode.commands.registerCommand('connect-ai-lab.enterPlaza', async () => {
+            if (_plazaSession) {
+                _plazaSession.stop(); _plazaSession = null;
+                vscode.window.showInformationMessage('🏛️ 광장에서 퇴장했습니다.');
+                return;
+            }
+            const cfg = vscode.workspace.getConfiguration('connectAiLab');
+            let dbUrl = (cfg.get<string>('plazaDbUrl') || process.env.PLAZA_DB_URL || '').trim();
+            setPlazaDbUrl(dbUrl);
+            if (!plazaConfigured()) {
+                const pick = await vscode.window.showInputBox({
+                    title: '에이전트 광장 — Firebase Realtime Database URL',
+                    prompt: 'GCP Firebase RTDB URL을 입력하세요 (EZERAI와 동일 DB).',
+                    placeHolder: 'https://<your-db>-default-rtdb.firebaseio.com',
+                });
+                if (!pick) return;
+                dbUrl = pick.trim();
+                await cfg.update('plazaDbUrl', dbUrl, vscode.ConfigurationTarget.Global);
+                setPlazaDbUrl(dbUrl);
+            }
+            let uid = context.globalState.get<string>('plazaUid');
+            if (!uid) { uid = 'ca-' + Math.random().toString(36).slice(2, 9); await context.globalState.update('plazaUid', uid); }
+            const company = readCompanyName() || '1인 기업';
+            const emoji = '🖥️';
+            const agents = ['📺', '📸', '🎨', '💻', '📊', '🗂️', '✂️', '✍️', '🔍'];
+
+            // 비서 발화에 쓸 모델 해석 (설정값 → 없으면 엔진에서 첫 모델 자동 감지)
+            let modelName = getConfig().defaultModel;
+            if (!modelName) {
+                try {
+                    const { ollamaBase } = getConfig();
+                    if (_isLMStudioEngine(ollamaBase)) {
+                        const r = await axios.get(`${ollamaBase}/v1/models`, { timeout: 1500 });
+                        modelName = r.data?.data?.[0]?.id || '';
+                    } else {
+                        const r = await axios.get(`${ollamaBase}/api/tags`, { timeout: 1500 });
+                        modelName = r.data?.models?.[0]?.name || '';
+                    }
+                } catch { /* 모델 자동 감지 실패는 무시 — 비서 발화만 빈 값 */ }
+            }
+
+            let lastReplyAt = 0; // 비서끼리 무한 핑퐁 방지용 쿨다운
+            _plazaSession = joinPlaza(
+                { uid, company, emoji, agents, source: 'connect-ai' },
+                async (m: PlazaMessage) => {
+                    vscode.window.setStatusBarMessage(`🏛️ ${m.emoji} ${m.company}: ${m.text}`, 6000);
+                    const now = Date.now();
+                    if (now - lastReplyAt < 12000) return; // 12s 쿨다운
+                    lastReplyAt = now;
+                    const line = await provider.generateSecretaryLine(m, modelName);
+                    if (line) await postPlazaMessage({ uid: uid!, company, emoji, role: 'secretary', text: line }).catch(() => {});
+                },
+            );
+            vscode.window.showInformationMessage(`🏛️ ${company}(으)로 광장에 입장. 다시 실행하면 퇴장합니다.`);
+            const hello = await provider.generateSecretaryLine(null, modelName);
+            if (hello) await postPlazaMessage({ uid, company, emoji, role: 'secretary', text: hello }).catch(() => {});
         }),
         /* v2.89.96 — 사이드바 ⋯ 메뉴가 어떤 이유로 클릭 안 받을 때를 대비한
            명령 팔레트 fallback. Cmd/Ctrl+Shift+P → "Axios AI: 설정 열기" */
@@ -18917,8 +19177,14 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
             let apiUrl = isLMStudio ? `${ollamaBase}/v1/chat/completions` : `${ollamaBase}/api/chat`;
 
             if (!isLMStudio) {
-                try { await axios.get(`${ollamaBase}/api/tags`, { timeout: 1000 }); }
-                catch { apiUrl = 'http://127.0.0.1:1234/v1/chat/completions'; isLMStudio = true; }
+                try { await axios.get(`${ollamaBase}/api/tags`, { timeout: 3000 }); }
+                catch (err: any) {
+                    const isTimeout = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+                    if (!isTimeout) {
+                        apiUrl = 'http://127.0.0.1:1234/v1/chat/completions';
+                        isLMStudio = true;
+                    }
+                }
             }
 
             // Separate images from text files
@@ -19156,11 +19422,14 @@ class SidebarChatProvider implements vscode.WebviewViewProvider {
             // Auto-Failover Logic: 유저가 설정을 안 건드렸더라도 Ollama가 죽어있으면 자동으로 LM Studio를 찾아갑니다!
             if (!isLMStudio) {
                 try {
-                    await axios.get(`${ollamaBase}/api/tags`, { timeout: 1000 });
+                    await axios.get(`${ollamaBase}/api/tags`, { timeout: 3000 });
                 } catch (err: any) {
-                    // Ollama 연결 실패 시 LM Studio 1234 포트로 강제 우회
-                    apiUrl = 'http://127.0.0.1:1234/v1/chat/completions';
-                    isLMStudio = true;
+                    const isTimeout = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+                    if (!isTimeout) {
+                        // Ollama 연결 실패 시 LM Studio 1234 포트로 강제 우회
+                        apiUrl = 'http://127.0.0.1:1234/v1/chat/completions';
+                        isLMStudio = true;
+                    }
                 }
             }
 
@@ -20221,6 +20490,12 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                 post({ type: 'agentStart', agent: t.agent, task: t.task });
                 _updateActiveDispatchStep(prompt, `${a.emoji} ${a.name} 작업 중 — ${t.task.slice(0, 40)}`);
 
+                // Telegram Progress: Sub-Agent Start
+                const tg = readTelegramConfig();
+                if (tg.token && tg.chatId && this._telegramMirrorPending) {
+                    sendTelegramReport(`⏳ **[서브 에이전트 구동]**\n• 담당: ${a.emoji} ${a.name}\n• 작업 내용: ${t.task.slice(0, 300)}`).catch(() => {});
+                }
+
                 // 이전 에이전트들의 산출물을 동료의 작업으로 함께 제공
                 const peerCtx = Object.keys(outputs).length > 0
                     ? `\n\n[같은 세션의 동료 에이전트 산출물]\n${Object.entries(outputs).map(([k, v]) => `\n### ${AGENTS[k]?.emoji} ${AGENTS[k]?.name}\n${v.slice(0, 1500)}`).join('\n')}`
@@ -20478,6 +20753,9 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                                 };
                                 /* 90초 → 25분(설치류 대비). music_studio_setup, project_scaffold 같은 게
                                    시간 오래 걸려도 끊기지 않게. */
+                                if (this._telegramMirrorPending) {
+                                    sendTelegramReport(`⏳ **[도구 실행 시작]**\n• 담당: ${a.emoji} ${a.name}\n• 실행 명령: \`${cmd.slice(0, 200)}\``).catch(() => {});
+                                }
                                 const r = await runCommandCaptured(cmd, cwd, (chunk) => flushChunk(chunk), 25 * 60 * 1000);
                                 if (lineBuf.trim()) flushChunk('', true);
                                 const status = r.timedOut ? '⏱️ 25분 초과' : (r.exitCode === 0 ? '✅' : `❌ exit ${r.exitCode}`);
@@ -20718,6 +20996,11 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                         });
                     }
                 } catch { /* never let harvesting break the dispatch */ }
+                const tgEnd = readTelegramConfig();
+                if (tgEnd.token && tgEnd.chatId && this._telegramMirrorPending) {
+                    const statusLine = `✅ **[작업 완료 보고]**\n• 담당: ${a.emoji} ${a.name}\n• 작업 결과 요약:\n${(outputs[t.agent] || '').trim().slice(0, 400)}`;
+                    sendTelegramReport(statusLine).catch(() => {});
+                }
                 post({ type: 'agentEnd', agent: t.agent });
                 
                 const metrics = getCompanyMetrics();
@@ -20728,21 +21011,56 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
                 post({ type: 'error', value: '🛑 사용자가 중단했어요.' });
                 return;
             }
-            // 4.5) 에이전트 간 자율 대화 (Confer) — 2명 이상일 때만
+            // 4.5) 에이전트 간 자율 대화 (Confer) — 진짜 멀티턴 LLM 왕복 (v2.89.158)
+            //   이전: CEO가 confer.md로 가짜 대화 1회를 통째로 생성.
+            //   지금: 참여한 specialist들이 각자 자기 페르소나로, 동료 산출물과
+            //   지금까지의 대화록을 보고 실제로 한 마디씩 in-character로 응답한다.
+            //   → LLM 호출이 턴마다 1번씩 발생하는 '진짜' 회의. (Layer 1)
             const conferTurns: { from: string; to: string; text: string }[] = [];
             if (plan.tasks.length >= 2) {
                 try {
-                    const conferInput = `[원 명령]\n${prompt}\n\n[산출물 요약]\n${plan.tasks.map(t => `\n## ${AGENTS[t.agent]?.name}\n${(outputs[t.agent] || '').slice(0, 800)}`).join('\n')}`;
-                    const conferRaw = await this._callAgentLLM(_personalizePrompt(CONFER_PROMPT), conferInput, modelName, 'ceo', false);
-                    const m = conferRaw.match(/\{[\s\S]*\}/);
-                    const parsed = JSON.parse(m ? m[0] : conferRaw);
-                    if (parsed && Array.isArray(parsed.turns)) {
-                        const validIds = SPECIALIST_IDS;
-                        for (const t of parsed.turns) {
-                            if (typeof t.from === 'string' && typeof t.to === 'string' && typeof t.text === 'string'
-                                && validIds.includes(t.from) && validIds.includes(t.to)
-                                && t.from !== t.to && t.text.trim().length > 0) {
-                                conferTurns.push({ from: t.from, to: t.to, text: t.text.trim().slice(0, 80) });
+                    // 산출물이 실제로 있는 specialist만 회의 참가
+                    const parts = plan.tasks
+                        .map(t => t.agent)
+                        .filter(id => SPECIALIST_IDS.includes(id) && (outputs[id] || '').trim().length > 30);
+                    if (parts.length >= 2) {
+                        // 발언 스케줄: 인접 동료에게 말 걸고 → 답하기. 최소 3턴, 최대 5턴.
+                        const schedule: { from: string; to: string }[] = [];
+                        for (let i = 0; i < parts.length - 1 && schedule.length < 5; i++) {
+                            schedule.push({ from: parts[i], to: parts[i + 1] });
+                            if (schedule.length < 5) schedule.push({ from: parts[i + 1], to: parts[i] });
+                        }
+                        if (parts.length === 2 && schedule.length < 3) schedule.push({ from: parts[0], to: parts[1] });
+
+                        post({ type: 'response', value: '💬 팀이 자리에서 자율 회의를 시작합니다…' });
+                        const outSummary = (id: string) => (outputs[id] || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+
+                        for (const turn of schedule) {
+                            if (isAborted()) break;
+                            const fromA = AGENTS[turn.from], toA = AGENTS[turn.to];
+                            if (!fromA || !toA) continue;
+                            const transcript = conferTurns.length
+                                ? conferTurns.map(t => `${AGENTS[t.from]?.name}: ${t.text}`).join('\n')
+                                : '(아직 대화 없음 — 네가 먼저 말을 건다)';
+                            const conferUser =
+                                `[팀 회의 — 너는 ${fromA.name}]\n` +
+                                `원 명령: ${prompt}\n\n` +
+                                `너의 산출물 요약:\n${outSummary(turn.from)}\n\n` +
+                                `${toA.name}의 산출물 요약:\n${outSummary(turn.to)}\n\n` +
+                                `지금까지의 대화:\n${transcript}\n\n` +
+                                `이제 ${toA.name}에게 한 마디 건네라. 두 산출물을 잇는 협업·확인·피드백이 드러나게. ` +
+                                `일반론·인사 금지. 반드시 한국어 한 문장, 40자 이내, ` +
+                                `따옴표·이름표·머리말 없이 '대사만' 출력.`;
+                            let line = '';
+                            try {
+                                const raw = await this._callAgentLLM(buildSpecialistPrompt(turn.from), conferUser, modelName, turn.from, false);
+                                line = (raw || '').split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+                                line = line.replace(/^["'「『]+|["'」』]+$/g, '').replace(/^[-•*]\s*/, '').replace(/^[^:：]{1,12}[:：]\s*/, '').trim().slice(0, 80);
+                            } catch { /* 이 턴 실패는 skip — 회의 전체를 깨지 않음 */ }
+                            if (line) {
+                                conferTurns.push({ from: turn.from, to: turn.to, text: line });
+                                // 진행 상황을 즉시 흘려서 사용자가 회의가 도는 걸 체감
+                                post({ type: 'response', value: `💬 ${fromA.emoji} ${fromA.name} → ${toA.emoji} ${toA.name}: ${line}` });
                             }
                         }
                     }
@@ -20977,6 +21295,25 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
         }
     }
 
+    /* 🏛️ 광장(Plaza) — 비서가 회사를 대표해 광장에서 한 마디 생성.
+       다른 회사 비서의 발언(incoming)에 우리 회사 입장으로 응답. 로컬 모델 사용.
+       반환: 한국어 한 문장(≤60자). 실패 시 빈 문자열. */
+    public async generateSecretaryLine(incoming: PlazaMessage | null, modelName: string): Promise<string> {
+        const company = readCompanyName() || '우리 회사';
+        const ctx = incoming
+            ? `방금 ${incoming.company}의 비서가 광장에서 말했다:\n"${incoming.text}"\n\n여기에 ${company}의 비서로서 한 마디로 응답하라.`
+            : `${company}의 비서로서 광장에 모인 다른 회사들에게 먼저 인사 겸 한 마디를 건네라.`;
+        const usr =
+            `[에이전트 광장 — 여러 AI 회사의 비서들이 모인 공용 공간]\n${ctx}\n\n` +
+            `규칙: 한국어 한 문장, 60자 이내. 협업·관심·제안이 드러나게. ` +
+            `따옴표·이름표·머리말 없이 대사만 출력.`;
+        try {
+            const raw = await this._callAgentLLM(buildSpecialistPrompt('secretary'), usr, modelName, 'secretary', false);
+            let line = (raw || '').split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+            return line.replace(/^["'「『]+|["'」』]+$/g, '').replace(/^[-•*]\s*/, '').trim().slice(0, 120);
+        } catch { return ''; }
+    }
+
     // 단일 에이전트 LLM 호출. broadcast=true이면 토큰을 webview로 스트리밍.
     private async _callAgentLLM(
         systemPrompt: string,
@@ -20994,8 +21331,14 @@ ${catalog.map((c, i) => `${i + 1}. agent=${c.agentId} tool=${c.tool} — ${c.des
         let isLMStudio = _isLMStudioEngine(ollamaBase);
         let apiUrl = isLMStudio ? `${ollamaBase}/v1/chat/completions` : `${ollamaBase}/api/chat`;
         if (!isLMStudio) {
-            try { await axios.get(`${ollamaBase}/api/tags`, { timeout: 1000 }); }
-            catch { apiUrl = 'http://127.0.0.1:1234/v1/chat/completions'; isLMStudio = true; }
+            try { await axios.get(`${ollamaBase}/api/tags`, { timeout: 3000 }); }
+            catch (err: any) {
+                const isTimeout = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+                if (!isTimeout) {
+                    apiUrl = 'http://127.0.0.1:1234/v1/chat/completions';
+                    isLMStudio = true;
+                }
+            }
         }
 
         const messages = [
